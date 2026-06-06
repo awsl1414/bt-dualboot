@@ -13,7 +13,7 @@ class TestExport:
 
     @fixture
     def export_sample(self, windows_registry_samples_dir):
-        with open(os.path.join(windows_registry_samples_dir, self.sample_reg_filename), "r") as f:
+        with open(os.path.join(windows_registry_samples_dir, self.sample_reg_filename)) as f:
             sample = f.read()
 
         return sample

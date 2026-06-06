@@ -1,5 +1,6 @@
-from bt_dualboot.bt_linux.bluetooth_device_factory import extract_macs, extract_info, bluetooth_device_factory
 import os
+
+from bt_dualboot.bt_linux.bluetooth_device_factory import bluetooth_device_factory, extract_info, extract_macs
 
 SAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_samples")
 SMPL_BT_SAMPLE_01 = os.path.join(SAMPLES_DIR, "bt_sample_01")

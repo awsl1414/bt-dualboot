@@ -1,36 +1,38 @@
 import os
-import sys
 import shutil
+import sys
 from itertools import repeat
-from bt_dualboot.win_mount import locate_windows_mount_points
+
 from bt_dualboot.bt_linux.devices import LINUX_BT_DIR, get_devices_paths
+from bt_dualboot.models.bluetooth_device import BluetoothDevice
+from bt_dualboot.win_mount import locate_windows_mount_points
 
 
-def is_debug():
+def is_debug() -> bool:
     return os.environ.get("DEBUG") == "1"
 
 
-def is_linux():
+def is_linux() -> bool:
     return sys.platform.find("linux") == 0
 
 
-def invariant_and_halt(condition, error_message):
+def invariant_and_halt(condition: bool, error_message: str) -> None:
     if condition:
-        raise SystemExit("ERROR: {}".format(error_message))
+        raise SystemExit(f"ERROR: {error_message}")
 
 
-def require_linux():
+def require_linux() -> None:
     invariant_and_halt(not is_linux(), "Intended to be used only from Linux.")
 
 
-def require_bt_dir_access():
+def require_bt_dir_access() -> None:
     invariant_and_halt(
         len(get_devices_paths()) == 0,
         f"No Bluetooth devices found!\nCheck if your user have access to {LINUX_BT_DIR} and at least one device paired. Try use sudo.",
     )
 
 
-def require_chntpw_package():
+def require_chntpw_package() -> None:
     invariant_and_halt(
         shutil.which("reged") is None,
         """ Missing dependency `reged`. Install `chntpw` package first.
@@ -42,7 +44,7 @@ def require_chntpw_package():
     )
 
 
-def require_univocal_windows_location(user_selected_location):
+def require_univocal_windows_location(user_selected_location: str | None) -> None:
     """
     Raises:
         SystemExit: when no Windows location found or locations is ambigous
@@ -62,7 +64,7 @@ def require_univocal_windows_location(user_selected_location):
     )
 
 
-def print_header(caption):
+def print_header(caption: str) -> None:
     """
     Prints:
         Underlined header
@@ -73,16 +75,23 @@ def print_header(caption):
     print("".join(repeat("=", len(caption))))
 
 
-def print_devices_list(section_id, caption, devices, annotation=None, message_not_found=None, bot=False):
+def print_devices_list(
+    section_id: str,
+    caption: str,
+    devices: list[BluetoothDevice] | None,
+    annotation: str | None = None,
+    message_not_found: str | None = None,
+    bot: bool = False,
+) -> None:
     """Prints devices list with caption and annotation or not found fallaback message
 
     Args:
-        section_id (str): unique string for bot=True, delimeter characteres not allowed
-        caption (str)
-        devices (list<BluetoothDevice>)
-        annotation (str) [optional]
-        message_not_found (str) [optional]
-        bot (bool): format parsable output for robots
+        section_id: unique string for bot=True, delimeter characteres not allowed
+        caption: header text
+        devices: list of BluetoothDevice instances
+        annotation: optional annotation text
+        message_not_found: optional fallback message
+        bot: format parsable output for robots
     """
     any_device = devices is not None and len(devices) > 0
 

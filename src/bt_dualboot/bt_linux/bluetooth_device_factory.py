@@ -1,13 +1,14 @@
-from bt_dualboot.models.bluetooth_device import BluetoothDevice
 import re
 from configparser import ConfigParser
 
+from bt_dualboot.models.bluetooth_device import BluetoothDevice
 
-def extract_macs(device_info_path):
+
+def extract_macs(device_info_path: str) -> dict[str, str] | None:
     """Extracts adapter and device MAC from path to /info file
 
     Args:
-        device_info_path (str): Kind of .../foo/A4:6B:6C:9D:E2:FB/B6:C2:D3:E5:F2:0D/info
+        device_info_path: Kind of .../foo/A4:6B:6C:9D:E2:FB/B6:C2:D3:E5:F2:0D/info
 
     Returns:
         hash: Kind of { device_mac: <device MAC>, adapter_mac: <adapter MAC> }
@@ -21,11 +22,11 @@ def extract_macs(device_info_path):
     return {"device_mac": device_mac, "adapter_mac": adapter_mac}
 
 
-def extract_info(device_info_path):
+def extract_info(device_info_path: str) -> dict[str, str | None]:
     """Extracts adapter info from Linux /path/to/info
 
     Args:
-        device_info_path (str): Kind of .../foo/A4:6B:6C:9D:E2:FB/B6:C2:D3:E5:F2:0D/info
+        device_info_path: Kind of .../foo/A4:6B:6C:9D:E2:FB/B6:C2:D3:E5:F2:0D/info
 
     Returns:
         hash: Kind of { name:, class:, pairing_key: }
@@ -41,11 +42,11 @@ def extract_info(device_info_path):
     # fmt: on
 
 
-def bluetooth_device_factory(device_info_path):
+def bluetooth_device_factory(device_info_path: str) -> BluetoothDevice:
     """Build BluetoothDevice instance for given /path/to/info
 
     Args:
-        device_info_path (str): Kind of .../foo/A4:6B:6C:9D:E2:FB/B6:C2:D3:E5:F2:0D/info
+        device_info_path: Kind of .../foo/A4:6B:6C:9D:E2:FB/B6:C2:D3:E5:F2:0D/info
 
     Returns:
         BluetoothDevice

@@ -1,9 +1,11 @@
-from bt_dualboot import APP_NAME, __version__
-from tests_integration.helpers import snapshot_cli_result, debug_shell
 from operator import itemgetter
+from typing import Any
+
+from bt_dualboot import APP_NAME, __version__
+from tests_integration.helpers import snapshot_cli_result
 
 
-def snapshot_cli(*args, **kwrd):
+def snapshot_cli(*args: Any, **kwrd: Any) -> Any:
     context = "[env_blank_linux] chntpw not installed, windows not mounted"
     return snapshot_cli_result(*args, context=context, **kwrd)
 

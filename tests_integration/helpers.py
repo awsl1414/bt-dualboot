@@ -1,43 +1,30 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
+from collections.abc import Generator
 from contextlib import contextmanager
 from operator import itemgetter
+from pathlib import Path
+from typing import Any
 
 from pytest import fixture
+
 from bt_dualboot import APP_NAME
 
 
 @fixture(scope="session")
-def debug_shell(request):
+def debug_shell(request: Any) -> Any:
     """Spawn debug /bin/bash in middle of pytest session.
     Useful to debug Docker context between setup and teardown states.
     """
 
     @contextmanager
-    def runner(shell="/bin/bash", cmd_opts=[], *subprocess_args, **subprocess_kwrd):
-        """Invokes shell using subprocess.run
-
-        Usage:
-            def test_foo(debug_shell):
-                ...
-                with debug_shell():   # /bin/bash by default
-                  pass
-                ...
-                with debug_shell('/bin/sh', ['-c', 'echo foo'], capture_output=False):
-                  pass
-                ...
-                with debug_shell():
-                  print(some_context)       # yields between disabling capturing
-                                            # and spaning shell
-
-        Args:
-            shell (str): [default: /bin/bash] path to shell
-            cmd_opts (list): list of command line options in subprocess.run format
-            subprocess_args (list)
-            subprocess_kwrd (dict)
-        """
+    def runner(
+        shell: str = "/bin/bash", cmd_opts: list[str] | None = None, *subprocess_args: Any, **subprocess_kwrd: Any
+    ) -> Generator[None]:
+        """Invokes shell using subprocess.run"""
+        if cmd_opts is None:
+            cmd_opts = []
         capman = request.config.pluginmanager.getplugin("capturemanager")
         capman.suspend_global_capture(in_=True)
         print("\n\nDEBUG: CAPTURE DISABLED")
@@ -50,49 +37,25 @@ def debug_shell(request):
     return runner
 
 
-def cli_name():
+def cli_name() -> str:
     return APP_NAME
 
 
-def project_root():
-    """
-    Returns:
-        str: project's root irrelative to current directory
-    """
+def project_root() -> Path:
+    """Returns project's root directory."""
     return Path(__file__).parent.parent
 
 
-def cli_result(cmd_opts, sudo=False, fake_time=None, launcher=None):
+def cli_result(
+    cmd_opts: list[str],
+    sudo: bool = False,
+    fake_time: str | None = None,
+    launcher: str | list[str] | None = None,
+) -> dict[str, Any]:
+    """Invokes cli with given comand line options
+    Captures and returns return code, stdout and stderr.
     """
-    Invokes cli with given comand line options
-    Captures and yield's return code, stdout and stderr
-
-    Args:
-        cmd_opts (list): list of command options for subprocess.run
-        sudo (bool): invoke with sudo
-        fake_time (str): expression for libfaketime FAKETIME= variable
-            @see details:
-                https://github.com/wolfcw/libfaketime
-                https://github.com/simon-weber/python-libfaketime
-        launcher (str|list): [default: "./bt-dualboot"] way to launch application
-            overrides PYTEST_CLI_CMD=
-            examples:
-                "bt-dualboot"
-                ["python3", "-m", "bt_dualboot"]
-
-    ENV:
-        PYTEST_CLI_CMD= (str): command to invoke cli
-            allows substitute for various test environments
-
-    Returns:
-        dict:
-            retcode (int): exit code of the command
-            stdout (str)
-            stderr (str)
-            cmd (str): invoked command
-
-    """
-    cli_cmd = launcher
+    cli_cmd: str | list[str] | None = launcher
 
     if cli_cmd is None:
         cli_cmd = os.environ.get("PYTEST_CLI_CMD")
@@ -106,8 +69,8 @@ def cli_result(cmd_opts, sudo=False, fake_time=None, launcher=None):
     cmd = [*cli_cmd, *cmd_opts]
 
     if fake_time is not None:
-        cmd = f"eval $(python-libfaketime); FAKETIME='{fake_time}' {' '.join(cmd)}"
-        cmd = ["sh", "-c", cmd]
+        cmd_str = f"eval $(python-libfaketime); FAKETIME='{fake_time}' {' '.join(cmd)}"
+        cmd = ["sh", "-c", cmd_str]
 
     if sudo is True:
         cmd.insert(0, "sudo")
@@ -118,7 +81,7 @@ def cli_result(cmd_opts, sudo=False, fake_time=None, launcher=None):
     )
 
     stdout = res.stdout.decode(sys.stdout.encoding)
-    stderr = res.stderr.decode(sys.stderr.encoding)
+    stderr = res.stderr.decode(sys.stdout.encoding)
     # fmt: off
     return {
         "retcode": res.returncode,
@@ -129,24 +92,14 @@ def cli_result(cmd_opts, sudo=False, fake_time=None, launcher=None):
     # fmt: on
 
 
-def snapshot_cli_result(snapshot_tool, cmd_opts, sudo=False, context=None, **kwrd):
-    """
-    Invokes cli with given comand line options
-    Captures and yield's return code, stdout and stderr
-    Saves snapshot for stdout and returncode+stderr
-
-    Args:
-        snapshot_tool: syrupy `snapshot` fixture
-        cmd_opts (list): list of command options for subprocess.run
-        sudo (bool): invoke with sudo
-
-    Yields:
-        dict: @see cli_result
-            retcode (int): exit code of the command
-            stdout (str)
-            stderr (str)
-            cmd (str): invoked command
-    """
+def snapshot_cli_result(
+    snapshot_tool: Any,
+    cmd_opts: list[str],
+    sudo: bool = False,
+    context: str | None = None,
+    **kwrd: Any,
+) -> Generator[dict[str, Any]]:
+    """Invokes cli with given comand line options, captures output, and asserts against snapshot."""
     res = cli_result(cmd_opts, sudo, **kwrd)
     retcode, stdout, stderr, cmd = itemgetter("retcode", "stdout", "stderr", "cmd")(res)
 
@@ -170,7 +123,7 @@ def snapshot_cli_result(snapshot_tool, cmd_opts, sudo=False, context=None, **kwr
     assert output == snapshot_tool
 
 
-def sudo_unlink(filename):
+def sudo_unlink(filename: str) -> None:
     res = subprocess.run(["sudo", "rm", filename], capture_output=True)
     if res.returncode != 0:
-        raise RuntimeError(res.stderr.decode(sys.stderr.encoding))
+        raise RuntimeError(res.stderr.decode(sys.stdout.encoding))

@@ -9,7 +9,7 @@ authors = [
 maintainers = [{ name = "logan", email = "3030994569@qq.com" }]
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -17,6 +17,7 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Home Automation",
     "Topic :: Multimedia",
     "Topic :: System",
@@ -44,7 +45,7 @@ testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 line-length = 120
 
 [tool.ruff.lint]

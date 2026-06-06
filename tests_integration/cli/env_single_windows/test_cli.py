@@ -1,15 +1,18 @@
-from pytest import fixture
+import filecmp
 import os
 import shutil
-import filecmp
-from operator import itemgetter
+from collections.abc import Generator
 from contextlib import contextmanager
+from operator import itemgetter
+from pathlib import Path
+from typing import Any
 
+from pytest import fixture
+
+from bt_dualboot.cli.app import DEFAULT_BACKUP_PATH
+from bt_dualboot.windows_registry import WINDOWS10_REGISTRY_PATH, WindowsRegistry
 from tests._helpers import pytest_unwrap
-from tests_integration.helpers import cli_result, snapshot_cli_result, sudo_unlink, debug_shell
 from tests.conftest import (
-    test_scheme,
-    import_devices,
     # valid for --sync
     MAC_NEED_SYNC_1,
     MAC_NEED_SYNC_2,
@@ -17,11 +20,10 @@ from tests.conftest import (
     # MAC_NO_WIN_PAIR_2,
     UNKNOWN_MAC_1,
     UNKNOWN_MAC_2,
+    import_devices,
+    test_scheme,
 )
-
-from bt_dualboot.windows_registry import WindowsRegistry, WINDOWS10_REGISTRY_PATH
-from bt_dualboot.cli.app import DEFAULT_BACKUP_PATH
-
+from tests_integration.helpers import cli_result, snapshot_cli_result, sudo_unlink
 
 OPTS_WIN_MOUNT = ["--win", "/mnt/win"]
 WIN_MOUNT_POINT = os.path.join(os.sep, "mnt", "win")
@@ -29,25 +31,27 @@ SYSTEM_REG = os.path.join(WIN_MOUNT_POINT, WINDOWS10_REGISTRY_PATH)
 CLI_CONTEXT = "[env_single_windows] valid environment with single windows mounted"
 
 
-def with_win(cmd_opts):
+def with_win(cmd_opts: list[str]) -> list[str]:
     return [*OPTS_WIN_MOUNT, *cmd_opts]
 
 
-def filter_devices_macs(stdout, section_id):
+def filter_devices_macs(stdout: str, section_id: str) -> list[str]:
     return [line.split(" ")[1] for line in stdout.split("\n") if line != "" and line.find(section_id) == 0]
 
 
-def snapshot_cli(*args, context=CLI_CONTEXT, **kwrd):
+def snapshot_cli(*args: Any, context: str = CLI_CONTEXT, **kwrd: Any) -> Any:
     return snapshot_cli_result(*args, context=context, **kwrd)
 
 
-def snapshot_cli_win(snapshot, cmd_opts, *args, **kwrd):
+def snapshot_cli_win(snapshot: Any, cmd_opts: list[str], *args: Any, **kwrd: Any) -> Any:
     actual_opts = [*OPTS_WIN_MOUNT, *cmd_opts]
     return snapshot_cli(snapshot, actual_opts, *args, **kwrd)
 
 
 @contextmanager
-def assert_hive_backup_ok(tmpdir, target_backup_path, should_absent=False):
+def assert_hive_backup_ok(
+    tmpdir: Path, target_backup_path: str, should_absent: bool = False
+) -> Generator[dict[str, str]]:
     """Assert Hive file backup ok
 
     Creates a copy of Hive file before changes for reference

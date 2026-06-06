@@ -1,8 +1,8 @@
 import re
 
 from bt_dualboot import __version__
-from bt_dualboot.models.bluetooth_device import BluetoothDevice
 from bt_dualboot.cli.tools import print_devices_list
+from bt_dualboot.models.bluetooth_device import BluetoothDevice
 
 
 def _print_with_common_args(*args, **kwrd):
@@ -28,7 +28,7 @@ def test_version():
                 )
                 return
 
-    assert False, "no version= found in pyproject.toml"
+    raise AssertionError("no version= found in pyproject.toml")
 
 
 class Test__print_devices_list:

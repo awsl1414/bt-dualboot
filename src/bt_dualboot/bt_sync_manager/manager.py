@@ -1,12 +1,18 @@
 import sys
+from collections.abc import Generator
 from contextlib import contextmanager
 
 # fmt: off
-from bt_dualboot.bt_linux.devices   import get_devices as get_linux_devices
+from bt_dualboot.bt_linux.devices import get_devices as get_linux_devices
+from bt_dualboot.bt_windows.convert import hex_string_to_reg_value, mac_to_reg_key
 from bt_dualboot.bt_windows.devices import get_devices as get_windows_devices
-from bt_dualboot.bt_windows.convert import mac_to_reg_key, hex_string_to_reg_value
 from bt_dualboot.models.bluetooth_device import BluetoothDevice
+from bt_dualboot.windows_registry import WindowsRegistry
+
 # fmt: on
+
+type DeviceOrMac = str | BluetoothDevice
+type DeviceOrMacList = DeviceOrMac | list[str] | list[BluetoothDevice]
 
 
 class DeviceNotFoundError(Exception):
@@ -21,15 +27,15 @@ class BtSyncManager:
         pull: write pairing keys from Windows to Linx (not implemented, out of scope of this tool)
     """
 
-    def __init__(self, windows_registry):
+    def __init__(self, windows_registry: WindowsRegistry) -> None:
         self.windows_registry = windows_registry
-        self.index_cache = None
+        self.index_cache: dict[str, list[BluetoothDevice]] | None = None
 
-    def flush_cache(self):
+    def flush_cache(self) -> None:
         self.index_cache = None
 
     @contextmanager
-    def no_cache(self):
+    def no_cache(self) -> Generator[None]:
         """
         Usage:
             with sync_manager.no_cache():
@@ -39,7 +45,7 @@ class BtSyncManager:
         yield
         self.flush_cache()
 
-    def _index_devices(self):
+    def _index_devices(self) -> dict[str, list[BluetoothDevice]]:
         """
         Indexes and chache BluetoothDevice lists both from Linux and Windows
 
@@ -48,14 +54,14 @@ class BtSyncManager:
         NOTE: this index used to match Windows and Linux devices prior copy&update data
 
         Returns:
-            dict<MAC:list<BluetoothDevice>>:
+            dict[MAC, list[BluetoothDevice]]:
                 key: device MAC
                 value: (linux_device, windows_device) pair of BluetoothDevice instances
         """
         if self.index_cache is not None:
             return self.index_cache
 
-        index = {}
+        index: dict[str, list[BluetoothDevice]] = {}
 
         # fmt: off
         linux_devices   = get_linux_devices()
@@ -95,15 +101,15 @@ class BtSyncManager:
         self.index_cache = index
         return self.index_cache
 
-    def _get_reg_adapter_section_key(self, device):
+    def _get_reg_adapter_section_key(self, device: BluetoothDevice) -> str:
         return r"ControlSet001\Services\BTHPORT\Parameters\Keys" + "\\" + mac_to_reg_key(device.adapter_mac)
 
-    def devices_both_synced(self):
+    def devices_both_synced(self) -> list[BluetoothDevice]:
         """
         !uses cached
 
         Returns:
-            list<BluetoothDevice>: which have the same pairing_key for Linux and Windows
+            list[BluetoothDevice]: which have the same pairing_key for Linux and Windows
         """
 
         index = self._index_devices()
@@ -115,12 +121,12 @@ class BtSyncManager:
 
         return synced_devices
 
-    def devices_needs_sync(self):
+    def devices_needs_sync(self) -> list[BluetoothDevice]:
         """
         !uses cached
 
         Returns:
-            list<BluetoothDevice>: which exist both in Linux and Windows, but have different pairing keys
+            list[BluetoothDevice]: which exist both in Linux and Windows, but have different pairing keys
         """
         index = self._index_devices()
 
@@ -131,12 +137,12 @@ class BtSyncManager:
 
         return needs_sync_devices
 
-    def devices_absent_windows(self):
+    def devices_absent_windows(self) -> list[BluetoothDevice]:
         """
         !uses cached
 
         Returns:
-            list<BluetoothDevice>: which exist both in Linux and Windows, but have different pairing keys
+            list[BluetoothDevice]: which exist both in Linux and Windows, but have different pairing keys
         """
 
         index = self._index_devices()
@@ -145,14 +151,14 @@ class BtSyncManager:
         ]
         return single_linux_devices
 
-    def _param_get_macs_list(self, device_or_mac_or_list):
+    def _param_get_macs_list(self, device_or_mac_or_list: DeviceOrMacList) -> list[str]:
         """Align plural argument to list of devices MACs
 
         Args:
-            device_or_mac_or_list (str|BluetoothDevice|list<str>|list<BluetoothDevice>)
+            device_or_mac_or_list: str, BluetoothDevice, or list of either
 
         Returns:
-            list<str>: list of devices MACs like ["B6:C2:D3:E5:F2:0D", ...]
+            list[str]: list of devices MACs like ["B6:C2:D3:E5:F2:0D", ...]
         """
         # handling: type|list<type> pluralism
         target_items_dirty = device_or_mac_or_list
@@ -160,7 +166,7 @@ class BtSyncManager:
             target_items_dirty = [target_items_dirty]
 
         # handling: list<str>|list<BluetoothDevice> pluralism
-        target_items_macs = []
+        target_items_macs: list[str] = []
         for item in target_items_dirty:
             if isinstance(item, BluetoothDevice):
                 target_items_macs.append(item.mac)
@@ -169,15 +175,15 @@ class BtSyncManager:
 
         return target_items_macs
 
-    def _update_windows_registry(self, devices):
+    def _update_windows_registry(self, devices: list[BluetoothDevice]) -> None:
         """Performs Windows registry import for given devices
 
         !updates Windows Hive file
 
         Args:
-            devices (list<BluetoothDevice>): list of BluetoothDevice for import
+            devices: list of BluetoothDevice for import
         """
-        for_import = {}
+        for_import: dict[str, dict[str, str]] = {}
         for device in devices:
             section_key = self._get_reg_adapter_section_key(device)
             device_key = f'"{mac_to_reg_key(device.mac)}"'
@@ -186,13 +192,13 @@ class BtSyncManager:
 
         self.windows_registry.import_dict(for_import)
 
-    def push(self, device_or_mac_or_list, dry_run=False):
+    def push(self, device_or_mac_or_list: DeviceOrMacList, dry_run: bool = False) -> None:
         """Copy pairing keys from Linux to Windows, import updates into Windows registry
 
         !updates Windows Hive file
 
         Args:
-            device_or_mac_or_list (str|BluetoothDevice|list<str>|list<BluetoothDevice>)
+            device_or_mac_or_list: str, BluetoothDevice, or list of either
 
         Raises:
             DeviceNotFoundError
@@ -208,9 +214,9 @@ class BtSyncManager:
                 macs_msg = ", ".join(list(absent_in_needs_sync))
                 raise DeviceNotFoundError(f"Can't push {macs_msg}! Not found or already in sync!")
 
-            devices_for_update = []
+            devices_for_update: list[BluetoothDevice] = []
             for device_mac in target_items_macs:
-                if device_mac not in index.keys():
+                if device_mac not in index:
                     raise DeviceNotFoundError(f"Can't push {device_mac}! Not found!")
 
                 device_linux, device_windows = index[device_mac]

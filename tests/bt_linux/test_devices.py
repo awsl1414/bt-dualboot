@@ -1,7 +1,7 @@
-from unittest.mock import patch
 import os
+from unittest.mock import patch
 
-from bt_dualboot.bt_linux.devices import get_adapters_macs, get_adapters_paths, get_devices_paths, get_devices
+from bt_dualboot.bt_linux.devices import get_adapters_macs, get_adapters_paths, get_devices, get_devices_paths
 from tests._helpers import bt_linux_sample_01_unwrapped
 
 

@@ -1,9 +1,10 @@
-from pytest import fixture
 from unittest.mock import patch
+
+from pytest import fixture
+
 from bt_dualboot.bt_sync_manager import BtSyncManager
 from bt_dualboot.models.bluetooth_device import BluetoothDevice
 from tests._helpers import bt_linux_sample_01_unwrapped
-
 
 SAMPLE_PUSH_MAC1 = "C2:9E:1D:E2:3D:A5"
 SAMPLE_PUSH_MAC2 = "B8:94:A5:FD:F1:0A"

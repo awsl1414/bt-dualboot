@@ -1,7 +1,9 @@
+import argparse
 import os
 import re
 import sys
 from argparse import ArgumentParser, ArgumentTypeError
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from bt_dualboot import APP_NAME, __version__
@@ -19,10 +21,10 @@ from .tools import (
     require_univocal_windows_location,
 )
 
-DEFAULT_BACKUP_PATH = os.path.join(os.sep, "var", "backup", "bt-dualboot")
+DEFAULT_BACKUP_PATH: str = os.path.join(os.sep, "var", "backup", "bt-dualboot")
 
 
-def mac_str(argument_value):
+def mac_str(argument_value: str) -> str:
     value = argument_value.upper()
     if re.match("^[A-F0-9:]+$", value) is None:
         raise ArgumentTypeError(
@@ -31,7 +33,7 @@ def mac_str(argument_value):
     return value
 
 
-def _argv_parser():
+def _argv_parser() -> ArgumentParser:
     arg_parser = ArgumentParser(
         prog=APP_NAME,
         description=f"Sync bluetooth keys from Linux to Windows (v{__version__})",
@@ -42,7 +44,7 @@ def _argv_parser():
     args_sync    = arg_parser.add_argument_group("Sync keys")
     args_backup  = arg_parser.add_argument_group("Backup Windows Registry")
 
-    arg_parser   .add_argument("--version",             help=f"print version",                                action="store_true")
+    arg_parser   .add_argument("--version",             help="print version",                                action="store_true")
     args_list    .add_argument("-l", "--list",          help="[root required] list bluetooth devices",        action="store_true")
     args_list    .add_argument("--list-win-mounts",     help="list mounted Windows locations",                action="store_true")
     args_list    .add_argument("--bot",                 help="parsable output for robots (supported: -l)",    action="store_true")
@@ -62,15 +64,14 @@ def _argv_parser():
     return arg_parser
 
 
-def _opt_backup(value):
+def _opt_backup(value: bool | str | None) -> bool | str | None:
     """
     Args:
-        value(bool|str|None)
+        value: raw value from argparse
     Returns:
-        bool|str|None:
-            None: `--backup` doesn't apper on command line
-            True: `--backup` given without path
-            str:  `--backup /path` given
+        None: `--backup` doesn't apper on command line
+        True: `--backup` given without path
+        str:  `--backup /path` given
     """
 
     if value is False:
@@ -85,24 +86,24 @@ def _opt_backup(value):
 
 
 @contextmanager
-def no_device_error_handler():
+def no_device_error_handler() -> Generator[None]:
     try:
         yield
     except DeviceNotFoundError as err:
         message = err.args[0]
-        raise SystemExit(f"ERROR: {message}\nNothing changed.")
+        raise SystemExit(f"ERROR: {message}\nNothing changed.") from None
 
 
 class Application:
-    def __init__(self, opts):
+    def __init__(self, opts: argparse.Namespace) -> None:
         self.opts = opts
         # fmt: off
-        self.__windows_path         = None
-        self.__windows_registry     = None
-        self.__sync_manager         = None
+        self.__windows_path: str | None         = None
+        self.__windows_registry: WindowsRegistry | None = None
+        self.__sync_manager: BtSyncManager | None       = None
         # fmt: on
 
-    def _opts_win_mount_point(self):
+    def _opts_win_mount_point(self) -> str | None:
         """
         Returns:
             str|None: non-empty --win ARG or None
@@ -116,12 +117,12 @@ class Application:
 
         return mount_point
 
-    def _windows_path(self):
+    def _windows_path(self) -> str:
         """
         !cached
 
         Returns:
-            (str): --win ARG or guessed Windows mount point
+            str: --win ARG or guessed Windows mount point
         """
         if self.__windows_path is None:
             if self._opts_win_mount_point() is not None:
@@ -131,7 +132,7 @@ class Application:
 
         return self.__windows_path
 
-    def _windows_registry(self):
+    def _windows_registry(self) -> WindowsRegistry:
         """
         !cached
 
@@ -143,7 +144,7 @@ class Application:
             self.__windows_registry = WindowsRegistry(windows_path=self._windows_path())
         return self.__windows_registry
 
-    def _sync_manager(self):
+    def _sync_manager(self) -> BtSyncManager:
         """
         !cached
 
@@ -156,16 +157,16 @@ class Application:
             self.__sync_manager = BtSyncManager(self._windows_registry())
         return self.__sync_manager
 
-    def is_dry_run(self):
+    def is_dry_run(self) -> bool:
         return self.opts.dry_run is True
 
-    def list_win_mounts(self):
+    def list_win_mounts(self) -> None:
         print_header("Windows locations:")
 
         for mount_point in locate_windows_mount_points():
             print(" " + mount_point)
 
-    def list_devices(self):
+    def list_devices(self) -> None:
         sync_manager = self._sync_manager()
         print_devices_list(
             "works",
@@ -191,10 +192,10 @@ class Application:
             bot=self.opts.bot,
         )
 
-    def backup(self, path):
+    def backup(self, path: str | bool) -> None:
         """Backups Hive file to given or default path
         Args:
-            path (str|bool):
+            path:
                 True  use DEFAULT_BACKUP_PATH
                 str   use given path
         """
@@ -212,17 +213,17 @@ class Application:
 
         print(f"> {' '.join(heading)} {restore_filename} to {saved_filename}")
 
-    def sync_devices(self, macs):
+    def sync_devices(self, macs: list[str]) -> None:
         """Sync specified devices
 
         Args:
-          macs (list<str>): list of devices MACs
+            macs: list of devices MACs
         """
         with no_device_error_handler():
             self._sync_manager().push(macs, dry_run=self.is_dry_run())
             print(f"synced {', '.join(macs)} successfully")
 
-    def sync_all(self):
+    def sync_all(self) -> None:
         sync_manager = self._sync_manager()
         with sync_manager.no_cache():
             devices_for_push = sync_manager.devices_needs_sync()
@@ -242,7 +243,7 @@ class Application:
                 sync_manager.push(devices_for_push, dry_run=self.is_dry_run())
                 print("...done")
 
-    def run(self):
+    def run(self) -> None:
         require_univocal_windows_location(user_selected_location=self._opts_win_mount_point())
 
         if self.opts.list_win_mounts:
@@ -262,7 +263,7 @@ class Application:
             self.sync_all()
 
 
-def parse_argv():
+def parse_argv() -> argparse.Namespace | None:
     parser = _argv_parser()
     if len(sys.argv) == 1:
         parser.print_help()
@@ -290,7 +291,7 @@ def parse_argv():
 
     opts_dict = vars(opts)
 
-    required_specified = [name for name in blank_states.keys() if opts_dict[name] != blank_states[name]]
+    required_specified = [name for name in blank_states if opts_dict[name] != blank_states[name]]
 
     if len(required_specified) == 0:
         parser.error("missing required argument")
@@ -329,7 +330,7 @@ def parse_argv():
     return opts
 
 
-def main():
+def main() -> None:
     require_linux()
     opts = parse_argv()
 

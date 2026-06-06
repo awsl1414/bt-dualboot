@@ -1,10 +1,11 @@
 import pytest
+
 from bt_dualboot.bt_windows.convert import (
+    hex_string_from_reg,
     hex_string_to_pairs,
+    hex_string_to_reg_value,
     mac_from_reg_key,
     mac_to_reg_key,
-    hex_string_from_reg,
-    hex_string_to_reg_value,
 )
 
 
