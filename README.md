@@ -5,9 +5,14 @@ Sync Bluetooth for dualboot Linux and Windows
 User-friendly tool making your bluetooth devices working both in Windows and Linux without re-pairing chore.
   [more about dualboot Bluetooth issue](#dualboot-bluetooth-issue)
 
+> **Fork of [x2es/bt-dualboot](https://github.com/x2es/bt-dualboot)** — maintained on the `dev` branch with Clean Architecture refactoring (v2.0.0+).
+> PyPI package: `bt-dualboot-ng` · CLI command: `bt-dualboot`
+
 ### bt-dualboot
   * doesn't require to reboot 3 times
   * ask you as much fewer details as possible
+  * multi-adapter support (Issue [#10](https://github.com/x2es/bt-dualboot/issues/10))
+  * preserves Windows-only BLE registry fields (Issue [#33](https://github.com/x2es/bt-dualboot/issues/33))
   * ... [see all advantages and alternatives](#advantages-and-alternatives)
 
 [How to install](#prerequisites)
@@ -100,13 +105,13 @@ see https://pogostick.net/~pnh/ntpasswd/
 ## Install
 
 ```console
-$ uv tool install bt-dualboot
+$ uv tool install bt-dualboot-ng
 ```
 
 or with pipx:
 
 ```console
-$ pipx install bt-dualboot
+$ pipx install bt-dualboot-ng
 ```
 
 NOTES: The tool automatically elevates to root via sudo when needed. Use `--no-elevate` to run without auto-elevation.
@@ -120,7 +125,7 @@ Supported:
 * Potentially any Linux-based systems keeping bluetooth configuration in similar format as Ubuntu
 * Windows 10+
 
-With next releases more OSes will be tested, Mac OS support will be added. If you get success or fail results for any OS not listed as supported, please share your experience at https://github.com/x2es/bt-dualboot/issues/1.
+With next releases more OSes will be tested, Mac OS support will be added. If you get success or fail results for any OS not listed as supported, please share your experience at https://github.com/awsl1414/bt-dualboot/issues.
 
 
 ## Advanced usage
@@ -298,4 +303,4 @@ Backup Windows Registry:
 
 First priority is to extend list of tested and supported OS.
 
-General roadmap assumes creating GUI and background service versions, adding sync Linux to Linux ability. It will be implemented on demand - give a voice at https://github.com/x2es/bt-dualboot/issues/2
+General roadmap assumes creating GUI and background service versions, adding sync Linux to Linux ability. It will be implemented on demand - give a voice at https://github.com/awsl1414/bt-dualboot/issues.

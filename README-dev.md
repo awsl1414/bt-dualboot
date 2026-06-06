@@ -1,5 +1,5 @@
-bt-dualboot: Development Guide
-==============================
+bt-dualboot-ng: Development Guide
+=================================
 
 ## Development environment
 
@@ -10,7 +10,7 @@ bt-dualboot: Development Guide
 ### Bootstrap
 
 ```console
-$ git clone git@github.com:x2es/bt-dualboot.git \
+$ git clone git@github.com:awsl1414/bt-dualboot.git \
     && cd bt-dualboot \
     && uv sync
 ```
