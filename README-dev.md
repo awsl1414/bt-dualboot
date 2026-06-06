@@ -91,5 +91,5 @@ All configuration lives in `pyproject.toml`:
 ## Debug mode
 
 ```bash
-DEBUG=1 bt-dualboot --sync-all    # Verbose output and artifacts (DEBUG preserved across sudo)
+DEBUG=1 bt-dualboot -a    # Verbose output and artifacts (DEBUG preserved across sudo)
 ```

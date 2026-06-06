@@ -32,7 +32,7 @@ Partition should be mounted with [write access](#troubleshooting-windows-partiti
 **2. Sync all devices available for sync**
 
 ```console
-$ bt-dualboot --sync-all
+$ bt-dualboot -a
 
 Elevating privileges via sudo...
 Syncing...
@@ -45,7 +45,8 @@ Syncing...
 NOTES:
   (i) **Auto sudo**: the tool automatically elevates via sudo when root is needed. Use `--no-elevate` to disable.
   (ii) [--backup vs --no-backup](#--backup-vs---no-backup): you will be asked about your Windows Registry backup strategy
-  (iii) use `--dry-run` to preview any command effects
+  (iii) use `-d` / `--dry-run` to preview any command effects
+  (iv) **Short options**: `-a` (sync-all), `-s` (sync), `-d` (dry-run), `-w` (win mount)
 
 ### Usage: choose device manually
 
@@ -78,7 +79,7 @@ Following devices unavailable for sync unless you boot Windows and pair them
 2. Sync devices using MAC
 
 ```console
-$ bt-dualboot --sync C2:9E:1D:E2:3D:A5
+$ bt-dualboot -s C2:9E:1D:E2:3D:A5
 
 Syncing...
 ==========
@@ -137,7 +138,7 @@ Windows Registry update performed in the safe way using `chntpw/reged` without c
 You have to choose your backup strategy explicitly.
 
 ```console
-$ bt-dualboot --sync-all
+$ bt-dualboot -a
 usage: ....
 bt-dualboot: error: Neither backup option given!
 
@@ -187,7 +188,7 @@ If Windows still does not boot, use the Windows Automatic Repair environment to 
 
 ### --win /mnt/win/path/
 
-By default application will recognize and use mounted Windows partition. In case when it didn't found or more than single Windows partition exist you have to provide mount point with `--win` paramter.
+By default application will recognize and use mounted Windows partition. If multiple Windows partitions are found, you will be prompted to select which one(s) to use (supports multi-select). Use `-w` / `--win` to specify a mount point directly.
 
 Use `--list-win-mounts` to list recognized Windows partitions.
 
@@ -199,7 +200,19 @@ Windows locations:
  /media/user/win_foo
  /media/user/win_bar
 
-$ bt-dualboot --win /media/user/win_foo -l
+$ bt-dualboot -w /media/user/win_foo -l
+```
+
+When multiple Windows partitions are mounted, the tool will prompt for selection:
+
+```console
+$ bt-dualboot -a
+
+Multiple Windows locations found:
+  [1] /media/user/win_foo
+  [2] /media/user/win_bar
+
+Select (e.g. 1 or 1,3 or all): 1
 ```
 
 #### Troubleshooting: Windows partition write access
@@ -273,7 +286,7 @@ Most soulutions is kind of import tool of Windows `*.reg` file into Linux blueto
 
 ```console
 $ bt-dualboot -h
-usage: bt-dualboot [-h] [-l] [--list-win-mounts] [--bot] [--dry-run] [--win MOUNT] [--sync MAC [MAC ...]] [--sync-all] [-n] [-b [path]] [--no-elevate]
+usage: bt-dualboot [-h] [-l] [--list-win-mounts] [--bot] [-d] [-w MOUNT] [-s MAC [MAC ...]] [-a] [-n] [-b [path]] [--no-elevate]
 
 Sync bluetooth keys from Linux to Windows.
 
@@ -286,10 +299,12 @@ List resources:
   --bot                 parsable output for robots (supported: -l)
 
 Sync keys:
-  --dry-run             print actions to do without invocation
-  --win MOUNT           Windows mount point (advanced usage)
-  --sync MAC [MAC ...]  [root required] sync specified device
-  --sync-all            [root required] sync all paired devices
+  -d, --dry-run         print actions to do without invocation
+  -w MOUNT, --win MOUNT
+                        Windows mount point (advanced usage)
+  -s MAC [MAC ...], --sync MAC [MAC ...]
+                        [root required] sync specified device
+  -a, --sync-all        [root required] sync all paired devices
 
 Backup Windows Registry:
   -n, --no-backup       process without backup

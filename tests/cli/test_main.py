@@ -4,7 +4,12 @@ from unittest.mock import patch
 import pytest
 
 from bt_dualboot import __version__
-from bt_dualboot.cli.main import print_devices_list, require_univocal_windows_location
+from bt_dualboot.cli.main import (
+    _argv_parser,
+    _parse_selection,
+    print_devices_list,
+    resolve_windows_location,
+)
 from bt_dualboot.domain.models import BluetoothDevice
 
 
@@ -71,32 +76,111 @@ class Test__print_devices_list:
         assert stdout == snapshot
 
 
-class TestRequireUnivocalWindowsLocation:
-    def test_user_selected_location_skips_check(self):
-        require_univocal_windows_location("/mnt/windows")
+class TestResolveWindowsLocation:
+    def test_user_selected_location_returns_single(self):
+        assert resolve_windows_location("/mnt/windows") == ["/mnt/windows"]
 
     @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=[])
     def test_zero_locations_shows_mount_guidance(self, mock_mounts):
         with pytest.raises(SystemExit) as exc_info:
-            require_univocal_windows_location(None)
+            resolve_windows_location(None)
         msg = str(exc_info.value)
         assert "No Windows locations found" in msg
         assert "lsblk -f" in msg
-        assert "--win" in msg
-
-    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b"])
-    def test_multiple_locations_lists_paths(self, mock_mounts):
-        with pytest.raises(SystemExit) as exc_info:
-            require_univocal_windows_location(None)
-        msg = str(exc_info.value)
-        assert "Multiple Windows locations found" in msg
-        assert "/mnt/a" in msg
-        assert "/mnt/b" in msg
-        assert "--win" in msg
+        assert "-w" in msg
 
     @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/win"])
-    def test_single_location_does_not_raise(self, mock_mounts):
-        require_univocal_windows_location(None)
+    def test_single_location_auto_selects(self, mock_mounts):
+        assert resolve_windows_location(None) == ["/mnt/win"]
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b"])
+    @patch("bt_dualboot.cli.main.input", return_value="1")
+    @patch("bt_dualboot.cli.main.sys")
+    def test_multiple_locations_interactive_select_one(self, mock_sys, mock_input, mock_mounts):
+        mock_sys.stdin.isatty.return_value = True
+        assert resolve_windows_location(None) == ["/mnt/a"]
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b"])
+    @patch("bt_dualboot.cli.main.input", return_value="all")
+    @patch("bt_dualboot.cli.main.sys")
+    def test_multiple_locations_interactive_select_all(self, mock_sys, mock_input, mock_mounts):
+        mock_sys.stdin.isatty.return_value = True
+        assert resolve_windows_location(None) == ["/mnt/a", "/mnt/b"]
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b", "/mnt/c"])
+    @patch("bt_dualboot.cli.main.input", return_value="1,3")
+    @patch("bt_dualboot.cli.main.sys")
+    def test_multiple_locations_interactive_select_comma(self, mock_sys, mock_input, mock_mounts):
+        mock_sys.stdin.isatty.return_value = True
+        assert resolve_windows_location(None) == ["/mnt/a", "/mnt/c"]
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b"])
+    @patch("bt_dualboot.cli.main.sys")
+    def test_multiple_locations_non_tty_raises(self, mock_sys, mock_mounts):
+        mock_sys.stdin.isatty.return_value = False
+        with pytest.raises(SystemExit) as exc_info:
+            resolve_windows_location(None)
+        msg = str(exc_info.value)
+        assert "non-interactive" in msg
+        assert "-w" in msg
+        assert "/mnt/a" in msg
+        assert "/mnt/b" in msg
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b"])
+    def test_multiple_locations_bot_mode_raises(self, mock_mounts):
+        with pytest.raises(SystemExit) as exc_info:
+            resolve_windows_location(None, bot=True)
+        msg = str(exc_info.value)
+        assert "bot mode" in msg
+        assert "/mnt/a" in msg
+        assert "/mnt/b" in msg
+
+
+class TestParseSelection:
+    def test_single_number(self):
+        assert _parse_selection("1", 3) == [0]
+
+    def test_comma_separated(self):
+        assert _parse_selection("1,3", 3) == [0, 2]
+
+    def test_range(self):
+        assert _parse_selection("1-3", 3) == [0, 1, 2]
+
+    def test_mixed(self):
+        assert _parse_selection("1,3-4", 4) == [0, 2, 3]
+
+    def test_out_of_range_returns_none(self):
+        assert _parse_selection("5", 3) is None
+
+    def test_invalid_text_returns_none(self):
+        assert _parse_selection("abc", 3) is None
+
+    def test_empty_returns_none(self):
+        assert _parse_selection("", 3) is None
+
+
+class TestShortOptions:
+    def test_sync_all_short(self):
+        opts = _argv_parser().parse_args(["-a"])
+        assert opts.sync_all is True
+
+    def test_sync_short(self):
+        opts = _argv_parser().parse_args(["-s", "AA:BB:CC:DD:EE:FF"])
+        assert opts.sync == ["AA:BB:CC:DD:EE:FF"]
+
+    def test_dry_run_short(self):
+        opts = _argv_parser().parse_args(["-d"])
+        assert opts.dry_run is True
+
+    def test_win_short(self):
+        opts = _argv_parser().parse_args(["-w", "/mnt/win"])
+        assert opts.win == ["/mnt/win"]
+
+    def test_combined_short_options(self):
+        opts = _argv_parser().parse_args(["-a", "-d", "-w", "/mnt/win"])
+        assert opts.sync_all is True
+        assert opts.dry_run is True
+        assert opts.win == ["/mnt/win"]
 
 
 class TestPrintDevicesList__MultiAdapter:

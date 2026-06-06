@@ -7,7 +7,6 @@ import sys
 from argparse import ArgumentParser, ArgumentTypeError
 from collections.abc import Generator
 from contextlib import contextmanager
-from itertools import repeat
 
 from bt_dualboot import APP_NAME, __version__
 from bt_dualboot._debug import is_debug
@@ -45,12 +44,12 @@ def _argv_parser() -> ArgumentParser:
     args_list.add_argument("-l", "--list", help="[root required] list bluetooth devices", action="store_true")
     args_list.add_argument("--list-win-mounts", help="list mounted Windows locations", action="store_true")
     args_list.add_argument("--bot", help="parsable output for robots (supported: -l)", action="store_true")
-    args_sync.add_argument("--dry-run", help="print actions to do without invocation", action="store_true")
-    args_sync.add_argument("--win", help="Windows mount point (advanced usage)", nargs=1, metavar="MOUNT")
+    args_sync.add_argument("-d", "--dry-run", help="print actions to do without invocation", action="store_true")
+    args_sync.add_argument("-w", "--win", help="Windows mount point (advanced usage)", nargs=1, metavar="MOUNT")
     args_sync.add_argument(
-        "--sync", help="[root required] sync specified device", nargs="+", metavar="MAC", type=mac_str
+        "-s", "--sync", help="[root required] sync specified device", nargs="+", metavar="MAC", type=mac_str
     )
-    args_sync.add_argument("--sync-all", help="[root required] sync all paired devices", action="store_true")
+    args_sync.add_argument("-a", "--sync-all", help="[root required] sync all paired devices", action="store_true")
     args_backup.add_argument("-n", "--no-backup", help="process without backup", action="store_true")
     args_backup.add_argument(
         "-b",
@@ -91,14 +90,25 @@ def require_linux() -> None:
     _invariant_and_halt(sys.platform.find("linux") != 0, "Intended to be used only from Linux.")
 
 
+_BT_DIR = "/var/lib/bluetooth"
+
+
 def require_bt_dir_access() -> None:
-    bt_dir = "/var/lib/bluetooth"
-    has_devices = bool(glob.glob(os.path.join(bt_dir, "*", "*", "info")))
-    _invariant_and_halt(
-        not has_devices,
-        "No Bluetooth devices found!\n"
-        f"Check if your user have access to {bt_dir} and at least one device paired. Try use sudo.",
-    )
+    if not os.path.exists(_BT_DIR):
+        raise SystemExit(
+            f"ERROR: Bluetooth directory not found: {_BT_DIR}\n"
+            "Make sure Bluetooth service is running and a Bluetooth adapter is present."
+        )
+
+    if not os.access(_BT_DIR, os.R_OK):
+        raise SystemExit(f"ERROR: Permission denied: {_BT_DIR}\nRun with sudo to access Bluetooth configuration.")
+
+    has_devices = bool(glob.glob(os.path.join(_BT_DIR, "*", "*", "info")))
+    if not has_devices:
+        raise SystemExit(
+            "ERROR: No paired Bluetooth devices found.\n"
+            "Pair at least one device in Linux first, then run this tool to sync."
+        )
 
 
 def require_chntpw_package() -> None:
@@ -113,36 +123,91 @@ def require_chntpw_package() -> None:
     )
 
 
-def require_univocal_windows_location(user_selected_location: str | None) -> None:
+def resolve_windows_location(user_selected_location: str | None, *, bot: bool = False) -> list[str]:
     if user_selected_location is not None:
-        return
+        return [user_selected_location]
 
     win_locations = locate_windows_mount_points()
     how_many = len(win_locations)
 
     if how_many == 0:
-        _invariant_and_halt(
-            True,
-            "No Windows locations found!\n"
+        raise SystemExit(
+            "ERROR: No Windows locations found!\n"
             "Make sure your Windows partition is mounted.\n"
             "  - List block devices: lsblk -f\n"
             "  - Mount manually: sudo mount /dev/sdXn /mnt/windows\n"
-            "  - Or specify path: --win /mnt/windows",
+            "  - Or specify path: -w /mnt/windows"
         )
-        return
 
-    if how_many > 1:
-        paths_list = "\n".join(f"  - {loc}" for loc in win_locations)
-        _invariant_and_halt(
-            True,
-            f"Multiple Windows locations found:\n{paths_list}\nUse `--win MOUNT` to specify which one to use.",
+    if how_many == 1:
+        return [win_locations[0]]
+
+    # Multiple locations — interactive selection
+    return _interactive_select_mount(win_locations, bot=bot)
+
+
+def _interactive_select_mount(locations: list[str], *, bot: bool = False) -> list[str]:
+    if bot or not sys.stdin.isatty():
+        reason = "bot mode" if bot else "non-interactive mode"
+        paths_list = "\n".join(f"  - {loc}" for loc in locations)
+        raise SystemExit(
+            f"ERROR: Multiple Windows locations found ({reason}):\n{paths_list}"
+            "\nUse `-w MOUNT` to specify which one to use."
         )
+
+    print("Multiple Windows locations found:")
+    for i, loc in enumerate(locations, 1):
+        print(f"  [{i}] {loc}")
+    print()
+
+    while True:
+        raw = input("Select (e.g. 1 or 1,3 or all): ").strip().lower()
+        if raw in ("all", "a"):
+            return list(locations)
+
+        indices = _parse_selection(raw, len(locations))
+        if indices is not None:
+            return [locations[i] for i in indices]
+
+        print(f"Invalid selection. Enter numbers 1-{len(locations)}, comma-separated, or 'all'.")
+
+
+def _parse_selection(raw: str, max_count: int) -> list[int] | None:
+    """Parse user input like '1', '1,3', '1-3' into 0-based indices. Returns None on invalid input."""
+    indices: set[int] = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            range_parts = part.split("-", 1)
+            try:
+                start = int(range_parts[0].strip())
+                end = int(range_parts[1].strip())
+            except ValueError:
+                return None
+            if start < 1 or end < 1 or start > end or end > max_count:
+                return None
+            indices.update(range(start - 1, end))
+        else:
+            try:
+                n = int(part)
+            except ValueError:
+                return None
+            if n < 1 or n > max_count:
+                return None
+            indices.add(n - 1)
+
+    if not indices:
+        return None
+
+    return sorted(indices)
 
 
 def print_header(caption: str) -> None:
     print()
     print(caption)
-    print("".join(repeat("=", len(caption))))
+    print("=" * len(caption))
 
 
 def _has_multiple_adapters(devices: list[BluetoothDevice] | None) -> bool:
@@ -212,23 +277,15 @@ class Application:
         return mount_point
 
     def _windows_path(self) -> str:
-        if self.__windows_path is None:
-            if self._opts_win_mount_point() is not None:
-                self.__windows_path = self._opts_win_mount_point()
-            else:
-                self.__windows_path = locate_windows_mount_points()[0]
-        assert self.__windows_path is not None
+        assert self.__windows_path is not None, "Windows path not set — call _reset_windows_state first"
         return self.__windows_path
 
     def _windows_registry(self) -> WindowsRegistry:
-        require_univocal_windows_location(self._opts_win_mount_point())
         if self.__windows_registry is None:
             self.__windows_registry = WindowsRegistry(windows_path=self._windows_path())
         return self.__windows_registry
 
     def _sync_service(self) -> SyncService:
-        require_bt_dir_access()
-
         if self.__sync_service is None:
             registry = self._windows_registry()
             linux_reader = LinuxDeviceReader()
@@ -282,10 +339,12 @@ class Application:
             bot=self.opts.bot,
         )
 
-    def backup(self, path: str | bool) -> None:
+    def backup(self, path: str | bool, *, mount_suffix: str = "") -> None:
         if path is False:
             return
         backup_path: str = DEFAULT_BACKUP_PATH if path is True else path
+        if mount_suffix:
+            backup_path = os.path.join(backup_path, mount_suffix)
 
         saved_filename, restore_filename = self._windows_registry().backup(backup_path, dry_run=self.is_dry_run())
         heading = ["BACKUP"]
@@ -320,18 +379,46 @@ class Application:
                 sync_service.push(devices_for_push, dry_run=self.is_dry_run())
                 print("...done")
 
-    def run(self) -> None:
-        require_univocal_windows_location(user_selected_location=self._opts_win_mount_point())
+    def _has_sync_actions(self) -> bool:
+        return self.opts.sync is not None or self.opts.sync_all is True
 
+    def run(self) -> None:
+        # --list-win-mounts is a diagnostic command, works without Windows mounted
         if self.opts.list_win_mounts:
             self.list_win_mounts()
 
+        # Resolve Windows location (needed for --list and sync actions)
+        win_mounts = resolve_windows_location(self._opts_win_mount_point(), bot=self.opts.bot)
+
+        # BT dir check: needed for both --list and sync, runs once before any action
+        if self.opts.list or self._has_sync_actions():
+            require_bt_dir_access()
+
         if self.opts.list:
+            self._reset_windows_state(win_mounts[0])
             self.list_devices()
 
+        # Sync loop: only when sync actions are requested
+        if self._has_sync_actions():
+            for i, mount in enumerate(win_mounts):
+                if len(win_mounts) > 1:
+                    print(f"\n{'=' * 40}")
+                    print(f"[{i + 1}/{len(win_mounts)}] {mount}")
+                    print("=" * 40)
+                # Use mount point basename as suffix to avoid backup collisions
+                mount_suffix = os.path.basename(mount) if len(win_mounts) > 1 else ""
+                self._reset_windows_state(mount)
+                self._run_sync_actions(mount_suffix=mount_suffix)
+
+    def _reset_windows_state(self, mount: str) -> None:
+        self.__windows_path = mount
+        self.__windows_registry = None
+        self.__sync_service = None
+
+    def _run_sync_actions(self, *, mount_suffix: str = "") -> None:
         opt_backup = _opt_backup(self.opts.backup)
         if opt_backup is not None:
-            self.backup(opt_backup)
+            self.backup(opt_backup, mount_suffix=mount_suffix)
 
         if self.opts.sync is not None:
             self.sync_devices(self.opts.sync)

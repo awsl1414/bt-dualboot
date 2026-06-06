@@ -78,6 +78,9 @@ cli             ← application/ + domain/ + infrastructure/ (composition root)
 - **Sudo auto-elevation**: `cli/privilege.py` auto re-execs under sudo. `--no-elevate` to disable.
 - **Case-insensitive path**: `resolve_path_ci()` handles NTFS mounts where Windows paths differ in case (e.g. `system` vs `SYSTEM`).
 - **Unsyncable devices**: `LinuxDeviceReader.read_all()` returns both syncable and unsyncable devices; CLI shows "Missing pairing key" section.
+- **Multi-mount interactive selection**: `resolve_windows_location()` returns `list[str]`; when multiple Windows mounts found, `_interactive_select_mount()` prompts user (supports single/comma/range/all). Non-TTY and `--bot` mode raise `SystemExit` with mount list.
+- **BT dir error differentiation**: `require_bt_dir_access()` distinguishes three failure cases: directory not found (service down), permission denied (needs sudo), no paired devices (never paired).
+- **Structured `run()` flow**: `--list-win-mounts` (no deps) → resolve Windows → single `require_bt_dir_access()` check → `--list` → conditional sync loop with `_reset_windows_state()` per mount.
 
 ### Data Flow
 
