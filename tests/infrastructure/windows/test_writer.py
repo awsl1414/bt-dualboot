@@ -94,4 +94,31 @@ class TestBuildImportDict:
         assert section['"Address"'] == "hex(b):ba,80,01,0c,6c,c0,00,00"
         assert '"AddressType"' in section
         assert '"CentralIRKStatus"' in section
+        assert section['"CentralIRKStatus"'] == "dword:00000001"
         assert '"AuthReq"' in section
+
+    def test_ltk_device_with_csrk_keys(self, windows_registry):
+        writer = self._make_writer(windows_registry)
+        device = BluetoothDevice(
+            mac="D5:1F:FA:42:1C:4C",
+            adapter_mac="A4:6B:6C:9D:E2:FB",
+            pairing_key="FFEEDDCCBBAA99887766554433221100",
+            pairing_type=PairingType.LONG_TERM_KEY,
+            pairing_data={
+                "Key": "FFEEDDCCBBAA99887766554433221100",
+                "EncSize": "16",
+                "EDiv": "0",
+                "Rand": "0",
+                "IRK": "00112233445566778899AABBCCDDEEFF",
+                "CSRK": "AABBCCDDEEFF0011223344556677889A",
+                "CSRKInbound": "11223344556677889900AABBCCDDEEFF",
+            },
+        )
+
+        result = writer._build_import_dict([device])
+        section_key = r"ControlSet001\Services\BTHPORT\Parameters\Keys\a46b6c9de2fb\d51ffa421c4c"
+        section = result[section_key]
+
+        assert '"IRK"' in section
+        assert '"CSRK"' in section
+        assert '"CSRKInbound"' in section

@@ -7,6 +7,24 @@ SAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_sam
 SMPL_BT_SAMPLE_01 = os.path.join(SAMPLES_DIR, "bt_sample_01")
 
 
+def _create_bt_dir_with_both_files(tmp_path):
+    """Create a minimal bt_dir where one device has both info and settings files."""
+    adapter_dir = tmp_path / "AA:BB:CC:DD:EE:01" / "FF:EE:DD:CC:BB:AA"
+    adapter_dir.mkdir(parents=True)
+
+    # info file with a LinkKey
+    (adapter_dir / "info").write_text(
+        "[General]\nName=Dual File Device\n[LinkKey]\nKey=11223344556677889900AABBCCDDEEFF\n"
+    )
+    # settings file also with a LongTermKey
+    (adapter_dir / "settings").write_text(
+        "[General]\nName=Dual File Device\n"
+        "[PeripheralLongTermKey]\nKey=AABBCCDD11223344556677889900EEFF\n"
+        "EncSize=16\nEDIV=0\nRand=0\n"
+    )
+    return str(tmp_path)
+
+
 class TestLinuxDeviceReader:
     def test_read_returns_devices(self):
         reader = LinuxDeviceReader(bt_dir=SMPL_BT_SAMPLE_01)
@@ -56,3 +74,24 @@ class TestLinuxDeviceReader:
         # Unsyncable device should have name parsed from info file
         device = [d for d in unsyncable if d.mac == "22:94:90:56:EE:38"][0]
         assert device.name == "Some Device Without Key"
+
+
+class TestLinuxDeviceReader__Dedup:
+    def test_read_all_deduplicates_when_both_info_and_settings(self, tmp_path):
+        bt_dir = _create_bt_dir_with_both_files(tmp_path)
+        reader = LinuxDeviceReader(bt_dir=bt_dir)
+
+        syncable, unsyncable = reader.read_all()
+
+        # Same device from both info and settings — should appear only once
+        macs = [d.mac for d in syncable]
+        assert macs.count("FF:EE:DD:CC:BB:AA") == 1
+
+    def test_read_deduplicates_when_both_info_and_settings(self, tmp_path):
+        bt_dir = _create_bt_dir_with_both_files(tmp_path)
+        reader = LinuxDeviceReader(bt_dir=bt_dir)
+
+        devices = reader.read()
+
+        macs = [d.mac for d in devices]
+        assert macs.count("FF:EE:DD:CC:BB:AA") == 1

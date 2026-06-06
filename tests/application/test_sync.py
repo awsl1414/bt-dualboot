@@ -135,7 +135,132 @@ class TestSyncService__push:
         assert sync_service.devices_needs_sync() == []
 
 
-class TestSyncService__PushMerge:
+class TestSyncService__DuckTyping:
+    """Tests for _index_devices() duck-typing of read_all() and devices_unsyncable()."""
+
+    @staticmethod
+    def _mock_reader_with_read_all(syncable: list[BluetoothDevice], unsyncable: list[BluetoothDevice]) -> MagicMock:
+        reader = MagicMock(spec=["read", "read_all"])
+        reader.read.return_value = syncable
+        reader.read_all.return_value = (syncable, unsyncable)
+        return reader
+
+    @staticmethod
+    def _mock_reader_read_only(devices: list[BluetoothDevice]) -> MagicMock:
+        reader = MagicMock(spec=["read"])
+        reader.read.return_value = devices
+        return reader
+
+    def test_index_devices_calls_read_all_when_available(self):
+        syncable = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            )
+        ]
+        unsyncable = [BluetoothDevice(mac="FF:EE:DD:CC:BB:AA", adapter_mac="11:11:11:11:11:11", name="NoKey Device")]
+        linux_reader = self._mock_reader_with_read_all(syncable, unsyncable)
+        win_reader = self._mock_reader_read_only([])
+        writer = MagicMock()
+
+        service = SyncService(linux_reader, win_reader, writer)
+        service._index_devices()
+
+        linux_reader.read_all.assert_called_once()
+        assert service._unsyncable_devices == unsyncable
+
+    def test_devices_unsyncable_returns_cached_list(self):
+        syncable = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            )
+        ]
+        unsyncable = [BluetoothDevice(mac="FF:EE:DD:CC:BB:AA", adapter_mac="11:11:11:11:11:11")]
+        linux_reader = self._mock_reader_with_read_all(syncable, unsyncable)
+        win_reader = self._mock_reader_read_only([])
+        writer = MagicMock()
+
+        service = SyncService(linux_reader, win_reader, writer)
+        result = service.devices_unsyncable()
+
+        assert result == unsyncable
+
+    def test_devices_unsyncable_empty_when_no_read_all(self):
+        syncable = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            )
+        ]
+        linux_reader = self._mock_reader_read_only(syncable)
+        win_reader = self._mock_reader_read_only([])
+        writer = MagicMock()
+
+        service = SyncService(linux_reader, win_reader, writer)
+        result = service.devices_unsyncable()
+
+        assert result == []
+
+    def test_index_devices_falls_back_to_read_on_value_error(self):
+        syncable = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            )
+        ]
+        linux_reader = MagicMock(spec=["read", "read_all"])
+        linux_reader.read_all.side_effect = ValueError("not a tuple")
+        linux_reader.read.return_value = syncable
+        win_reader = self._mock_reader_read_only([])
+        writer = MagicMock()
+
+        service = SyncService(linux_reader, win_reader, writer)
+        service._index_devices()
+
+        linux_reader.read.assert_called_once()
+        assert service._unsyncable_devices is None
+
+    def test_flush_cache_clears_unsyncable(self):
+        syncable = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            )
+        ]
+        unsyncable = [BluetoothDevice(mac="FF:EE:DD:CC:BB:AA", adapter_mac="11:11:11:11:11:11")]
+        linux_reader = self._mock_reader_with_read_all(syncable, unsyncable)
+        win_reader = self._mock_reader_read_only([])
+        writer = MagicMock()
+
+        service = SyncService(linux_reader, win_reader, writer)
+        assert service.devices_unsyncable() == unsyncable
+
+        service.flush_cache()
+        # _unsyncable_devices is cleared, but devices_unsyncable() re-indexes
+        # Verify the internal state is cleared
+        assert service._unsyncable_devices is None
+
     """Verify push() merges pairing_data (Issue #33): Linux overrides, Windows-only fields preserved."""
 
     @staticmethod

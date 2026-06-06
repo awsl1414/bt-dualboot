@@ -1,15 +1,17 @@
 import re
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from bt_dualboot import __version__
 from bt_dualboot.cli.main import (
+    Application,
     _argv_parser,
     _parse_selection,
     print_devices_list,
     resolve_windows_location,
 )
+from bt_dualboot.domain.enums import DeviceSource, PairingType
 from bt_dualboot.domain.models import BluetoothDevice
 
 
@@ -222,3 +224,138 @@ class TestPrintDevicesList__MultiAdapter:
         stdout, _stderr = capsys.readouterr()
         assert "11:11:11:11:11:11" in stdout
         assert "22:22:22:22:22:22" in stdout
+
+
+def _make_opts(**overrides):
+    """Create a minimal argparse Namespace for Application."""
+    import argparse
+
+    defaults = {
+        "version": False,
+        "list": False,
+        "list_win_mounts": False,
+        "bot": False,
+        "dry_run": False,
+        "win": None,
+        "sync": None,
+        "sync_all": False,
+        "no_backup": True,
+        "backup": False,
+        "no_elevate": True,
+    }
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+def _mock_sync_service():
+    """Create a mock SyncService with common methods stubbed."""
+    service = MagicMock()
+    service.devices_both_synced.return_value = []
+    service.devices_needs_sync.return_value = []
+    service.devices_absent_windows.return_value = []
+    service.devices_unsyncable.return_value = []
+    service.no_cache.return_value.__enter__ = MagicMock()
+    service.no_cache.return_value.__exit__ = MagicMock(return_value=False)
+    return service
+
+
+class TestApplicationRun:
+    """Integration tests for Application.run()."""
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/win"])
+    @patch("bt_dualboot.cli_main_require_bt_dir", create=True)
+    def test_list_win_mounts_only_returns_early(self, mock_bt, mock_mounts, capsys):
+        """--list-win-mounts alone should not require Windows resolution or BT dir."""
+        opts = _make_opts(list_win_mounts=True)
+        app = Application(opts)
+        app.run()
+
+        stdout = capsys.readouterr().out
+        assert "/mnt/win" in stdout
+
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=[])
+    def test_list_win_mounts_no_windows_ok(self, mock_mounts, capsys):
+        """--list-win-mounts with no Windows mounted should not crash."""
+        opts = _make_opts(list_win_mounts=True)
+        app = Application(opts)
+        app.run()
+
+        stdout = capsys.readouterr().out
+        assert "Windows locations" in stdout
+
+    @patch("bt_dualboot.cli.main.require_bt_dir_access")
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/win"])
+    def test_list_devices_includes_unsyncable_section(self, mock_mounts, mock_bt, capsys):
+        """--list should show the 'Missing pairing key' section."""
+        mock_service = _mock_sync_service()
+        mock_service.devices_unsyncable.return_value = [
+            BluetoothDevice(mac="FF:EE:DD:CC:BB:AA", adapter_mac="11:11:11:11:11:11", name="NoKey")
+        ]
+
+        opts = _make_opts(list=True)
+        app = Application(opts)
+
+        with patch.object(app, "_sync_service", return_value=mock_service):
+            app.run()
+
+        stdout = capsys.readouterr().out
+        assert "Missing pairing key" in stdout
+        assert "FF:EE:DD:CC:BB:AA" in stdout
+
+    @patch("bt_dualboot.cli.main.require_bt_dir_access")
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/win"])
+    def test_sync_all_dry_run_message(self, mock_mounts, mock_bt, capsys):
+        """--sync-all --dry-run should show dry-run specific output."""
+        device = BluetoothDevice(
+            mac="AA:BB:CC:DD:EE:FF",
+            source=DeviceSource.LINUX,
+            adapter_mac="11:11:11:11:11:11",
+            pairing_key="KEY1",
+            pairing_type=PairingType.LINK_KEY,
+            pairing_data={"Key": "KEY1"},
+        )
+        mock_service = _mock_sync_service()
+        mock_service.devices_needs_sync.return_value = [device]
+
+        opts = _make_opts(sync_all=True, dry_run=True)
+        app = Application(opts)
+
+        with patch.object(app, "_sync_service", return_value=mock_service):
+            app.run()
+
+        stdout = capsys.readouterr().out
+        assert "dry run" in stdout.lower()
+
+    @patch("bt_dualboot.cli.main.require_bt_dir_access")
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/win"])
+    def test_sync_single_dry_run_message(self, mock_mounts, mock_bt, capsys):
+        """--sync MAC --dry-run should show 'would be synced'."""
+        mock_service = _mock_sync_service()
+
+        opts = _make_opts(sync=["AA:BB:CC:DD:EE:FF"], dry_run=True)
+        app = Application(opts)
+
+        with patch.object(app, "_sync_service", return_value=mock_service):
+            app.run()
+
+        stdout = capsys.readouterr().out
+        assert "would be synced" in stdout
+
+    @patch("bt_dualboot.cli.main.require_bt_dir_access")
+    @patch("bt_dualboot.cli.main.locate_windows_mount_points", return_value=["/mnt/a", "/mnt/b"])
+    @patch("bt_dualboot.cli.main.input", return_value="all")
+    @patch("bt_dualboot.cli.main.sys")
+    def test_multi_mount_sync_loop(self, mock_sys, mock_input, mock_mounts, mock_bt, capsys):
+        """Multiple Windows mounts should show mount headers in sync loop."""
+        mock_sys.stdin.isatty.return_value = True
+        mock_service = _mock_sync_service()
+
+        opts = _make_opts(sync_all=True, dry_run=True)
+        app = Application(opts)
+
+        with patch.object(app, "_sync_service", return_value=mock_service):
+            app.run()
+
+        stdout = capsys.readouterr().out
+        assert "[1/2]" in stdout
+        assert "[2/2]" in stdout

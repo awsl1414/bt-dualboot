@@ -105,3 +105,39 @@ def test_get_devices__long_term_key_with_windows_only_fields(windows_registry):
     assert device.pairing_data["AddressType"] == "dword:00000000"
     assert device.pairing_data["CentralIRKStatus"] == "dword:00000001"
     assert device.pairing_data["AuthReq"] == "dword:00000020"
+
+
+def test_get_devices__long_term_key_with_csrk_keys(windows_registry):
+    adapter_mac = "A4:6B:6C:9D:E2:FB"
+    device_mac = "AA:BB:CC:DD:EE:FF"
+    reg_section = wp(
+        r"ControlSet001\Services\BTHPORT\Parameters\Keys"
+        + "\\"
+        + mac_to_reg_key(adapter_mac)
+        + "\\"
+        + mac_to_reg_key(device_mac)
+    )
+    windows_registry.import_dict(
+        {
+            reg_section: {
+                '"LTK"': "hex:ff,ee,dd,cc,bb,aa,99,88,77,66,55,44,33,22,11,00",
+                '"KeyLength"': "dword:00000010",
+                '"EDIV"': "dword:00000000",
+                '"ERand"': "hex(b):00,00,00,00,00,00,00,00",
+                '"IRK"': "hex:00,11,22,33,44,55,66,77,88,99,aa,bb,cc,dd,ee,ff",
+                '"CSRK"': "hex:aa,bb,cc,dd,ee,ff,00,11,22,33,44,55,66,77,88,99",
+                '"CSRKInbound"': "hex:11,22,33,44,55,66,77,88,99,aa,bb,cc,dd,ee,ff,00",
+            }
+        },
+        safe=False,
+    )
+
+    reader = WindowsDeviceReader(windows_registry)
+    devices = reader.read()
+    device = [d for d in devices if d.mac == device_mac][0]
+
+    assert device.pairing_data["IRK"] == "00112233445566778899AABBCCDDEEFF"
+    assert "CSRK" in device.pairing_data
+    assert "CSRKInbound" in device.pairing_data
+    assert len(device.pairing_data["CSRK"]) == 32  # 16 bytes hex
+    assert len(device.pairing_data["CSRKInbound"]) == 32
