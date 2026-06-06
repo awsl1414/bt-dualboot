@@ -7,6 +7,8 @@ from tempfile import TemporaryDirectory
 
 from bt_dualboot._debug import is_debug
 
+from .resolve import resolve_path_ci
+
 WINDOWS10_REGISTRY_PATH: str = os.path.join("Windows", "System32", "config", "SYSTEM")
 
 
@@ -49,7 +51,7 @@ class WindowsRegistry:
         if self.registry_file_path is not None:
             return self.registry_file_path
 
-        return os.path.join(self.windows_path, self.relative_registry_path)
+        return resolve_path_ci(self.windows_path, self.relative_registry_path)
 
     def export(self, reg_key: str) -> str:
         """Exports given registry key as text"""

@@ -1,0 +1,7 @@
+[General]
+Name=Some Device Without Key
+Class=0x240414
+SupportedTechnologies=BR/EDR;
+Trusted=true
+Blocked=false
+CablePairing=false

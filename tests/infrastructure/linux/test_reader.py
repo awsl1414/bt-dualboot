@@ -40,3 +40,19 @@ class TestLinuxDeviceReader:
         settings_paths = [p for p in paths if p.endswith("settings")]
         assert len(info_paths) > 0
         assert len(settings_paths) > 0
+
+    def test_read_all_separates_syncable_and_unsyncable(self):
+        reader = LinuxDeviceReader(bt_dir=SMPL_BT_SAMPLE_01)
+        syncable, unsyncable = reader.read_all()
+
+        # Unsyncable device: 22:94:90:56:EE:38 has no LinkKey/LongTermKey
+        unsyncable_macs = [d.mac for d in unsyncable]
+        assert "22:94:90:56:EE:38" in unsyncable_macs
+
+        # Syncable devices should NOT include the unsyncable one
+        syncable_macs = [d.mac for d in syncable]
+        assert "22:94:90:56:EE:38" not in syncable_macs
+
+        # Unsyncable device should have name parsed from info file
+        device = [d for d in unsyncable if d.mac == "22:94:90:56:EE:38"][0]
+        assert device.name == "Some Device Without Key"

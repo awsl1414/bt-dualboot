@@ -1,6 +1,5 @@
 import glob
 import os
-from contextlib import suppress
 
 from bt_dualboot.domain.models import BluetoothDevice
 
@@ -16,14 +15,42 @@ class LinuxDeviceReader:
         self._bt_dir = bt_dir
 
     def read(self) -> list[BluetoothDevice]:
-        paths = self._device_paths()
-        devices = []
-        for path in paths:
-            with suppress(NotSyncableDeviceError):
-                devices.append(parse_device(path))
-        return devices
+        """Return list of syncable devices (those with LinkKey or LongTermKey)."""
+        syncable, _ = self.read_all()
+        return syncable
+
+    def read_all(self) -> tuple[list[BluetoothDevice], list[BluetoothDevice]]:
+        """Return (syncable, unsyncable) device lists.
+
+        Unsyncable devices have no LinkKey or LongTermKey in their info file.
+        """
+        syncable: list[BluetoothDevice] = []
+        unsyncable: list[BluetoothDevice] = []
+        for path in self._device_paths():
+            try:
+                syncable.append(parse_device(path))
+            except NotSyncableDeviceError:
+                unsyncable.append(self._build_unsyncable_device(path))
+        return syncable, unsyncable
 
     def _device_paths(self) -> list[str]:
         info = glob.glob(os.path.join(self._bt_dir, "*", "*", "info"))
         settings = glob.glob(os.path.join(self._bt_dir, "*", "*", "settings"))
         return info + settings
+
+    def _build_unsyncable_device(self, path: str) -> BluetoothDevice:
+        """Build a minimal BluetoothDevice for a path that raised NotSyncableDeviceError."""
+        import re
+        from configparser import ConfigParser
+
+        macs = re.search("([A-F0-9:]+)/([A-F0-9:]+)/(info|settings)$", path)
+        mac = macs.group(2) if macs else None
+        adapter_mac = macs.group(1) if macs else None
+
+        name = None
+        if path.endswith("info"):
+            config = ConfigParser()
+            config.read(path)
+            name = config.get("General", "Name", fallback=None)
+
+        return BluetoothDevice(mac=mac, name=name, adapter_mac=adapter_mac)

@@ -60,6 +60,7 @@ def _argv_parser() -> ArgumentParser:
         metavar="path",
         default=False,
     )
+    arg_parser.add_argument("--no-elevate", help="do not auto-elevate to root via sudo", action="store_true")
 
     return arg_parser
 
@@ -243,6 +244,17 @@ class Application:
             bot=self.opts.bot,
         )
 
+        # Show devices without pairing key (unsyncable)
+        reader = LinuxDeviceReader()
+        _, unsyncable = reader.read_all()
+        print_devices_list(
+            "missing_key",
+            "Missing pairing key",
+            devices=unsyncable,
+            annotation="Following devices do not have a pairing key and cannot be synced",
+            bot=self.opts.bot,
+        )
+
     def backup(self, path: str | bool) -> None:
         backup_path = path
         if backup_path is True:
@@ -368,11 +380,16 @@ def parse_argv() -> argparse.Namespace | None:
 
 
 def main() -> None:
+    from .privilege import action_requires_root, elevate_via_sudo
+
     require_linux()
     opts = parse_argv()
 
     if opts is None:
         return
+
+    if action_requires_root(opts) and not opts.no_elevate:
+        elevate_via_sudo()
 
     require_chntpw_package()
 
