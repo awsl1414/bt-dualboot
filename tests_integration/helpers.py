@@ -136,7 +136,7 @@ def snapshot_cli_result(snapshot_tool, cmd_opts, sudo=False, context=None, **kwr
     Saves snapshot for stdout and returncode+stderr
 
     Args:
-        snapshot_tool (pytest_snapshot.plugin.Snapshot): `snapshot` fixture from pytest-snapshot
+        snapshot_tool: `snapshot` fixture (currently pytest-snapshot API, awaiting syrupy migration)
         cmd_opts (list): list of command options for subprocess.run
         sudo (bool): invoke with sudo
 

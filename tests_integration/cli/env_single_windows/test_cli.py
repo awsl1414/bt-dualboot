@@ -5,9 +5,9 @@ import filecmp
 from operator import itemgetter
 from contextlib import contextmanager
 
-from tests.helpers import pytest_unwrap
+from tests._helpers import pytest_unwrap
 from tests_integration.helpers import cli_result, snapshot_cli_result, sudo_unlink, debug_shell
-from tests.bt_windows.shared_fixtures import (
+from tests.conftest import (
     test_scheme,
     import_devices,
 

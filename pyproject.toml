@@ -1,14 +1,15 @@
-[tool.poetry]
+[project]
 name = "bt-dualboot"
 version = "1.0.1"
 description = "Sync Bluetooth for dualboot Linux and Windows"
-keywords = [ "bluetooth", "dualboot", "sync", "pairing", "keys" ]
-authors = ["Konstantin Ivanov <KEIvanov@gmail.com>"]
+keywords = ["bluetooth", "dualboot", "sync", "pairing", "keys"]
+authors = [
+    { name = "Konstantin Ivanov", email = "KEIvanov@gmail.com" },
+]
+maintainers = [{ name = "logan", email = "3030994569@qq.com" }]
 readme = "README.md"
-homepage = "https://github.com/x2es/bt-dualboot.git"
-repository = "https://github.com/x2es/bt-dualboot.git"
 license = "MIT"
-
+requires-python = ">=3.12"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -22,22 +23,38 @@ classifiers = [
     "Topic :: System :: Operating System",
     "Topic :: System :: Systems Administration",
 ]
+dependencies = []
 
-[tool.poetry.dependencies]
-python = "^3.6"
-
-[tool.poetry.dev-dependencies]
-pytest = "^7.1.2"
-pytest-watch = "^4.2.0"
-pytest-snapshot = "^0.9.0"
-libfaketime = "^2.0.0"
-black = "^22.3.0"
-autopep8 = "^1.6.0"
-flake8 = "^4.0.1"
-
-[tool.poetry.scripts]
-bt-dualboot = "bt_dualboot.cli.app:main"
+[project.urls]
+Homepage = "https://github.com/x2es/bt-dualboot.git"
+Repository = "https://github.com/x2es/bt-dualboot.git"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bt_dualboot"]
+
+[project.scripts]
+bt-dualboot = "bt_dualboot.cli.app:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "syrupy",
+    "time-machine",
+    "ruff",
+    "ty",
+]

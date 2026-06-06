@@ -1,7 +1,0 @@
-#!/usr/bin/env sh
-
-. dev/helpers.sh
-
-# Start Unit/Acceptance tests
-pytest_launcher --tests-dir tests/ "$@"
-
