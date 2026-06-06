@@ -2,6 +2,9 @@
 Sync Bluetooth for dualboot Linux and Windows
 =============================================
 
+> **Active fork**: This project is actively maintained at [awsl1414/bt-dualboot](https://github.com/awsl1414/bt-dualboot) (`dev` branch).
+> PyPI package: `bt-dualboot-ng` · Install: `uv tool install bt-dualboot-ng`
+
 User-friendly tool making your bluetooth devices working both in Windows and Linux without re-pairing chore.
   [more about dualboot Bluetooth issue](#dualboot-bluetooth-issue)
 
