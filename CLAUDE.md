@@ -45,7 +45,8 @@ src/bt_dualboot/
 │   │   ├── parser.py        # Registry section parsing
 │   │   ├── reader.py        # WindowsDeviceReader
 │   │   ├── convert.py       # hex/MAC/registry conversions (pure functions)
-│   │   └── writer.py        # WindowsDeviceWriter
+│   │   ├── writer.py        # WindowsDeviceWriter
+│   │   └── keymaps.py       # Shared BLE key mappings (single source of truth)
 │   └── registry/
 │       ├── hive.py          # WindowsRegistry (chntpw/reged wrapper)
 │       └── resolve.py       # resolve_path_ci() case-insensitive NTFS path
@@ -77,10 +78,12 @@ cli             ← application/ + domain/ + infrastructure/ (composition root)
 - **Parameterized readers**: `LinuxDeviceReader(bt_dir=...)` eliminates `@patch` in tests.
 - **Sudo auto-elevation**: `cli/privilege.py` auto re-execs under sudo. `--no-elevate` to disable.
 - **Case-insensitive path**: `resolve_path_ci()` handles NTFS mounts where Windows paths differ in case (e.g. `system` vs `SYSTEM`).
-- **Unsyncable devices**: `LinuxDeviceReader.read_all()` returns both syncable and unsyncable devices; CLI shows "Missing pairing key" section.
+- **Unsyncable devices**: `SyncService.devices_unsyncable()` exposes devices without pairing keys via cached `read_all()` call; no second filesystem scan.
 - **Multi-mount interactive selection**: `resolve_windows_location()` returns `list[str]`; when multiple Windows mounts found, `_interactive_select_mount()` prompts user (supports single/comma/range/all). Non-TTY and `--bot` mode raise `SystemExit` with mount list.
 - **BT dir error differentiation**: `require_bt_dir_access()` distinguishes three failure cases: directory not found (service down), permission denied (needs sudo), no paired devices (never paired).
-- **Structured `run()` flow**: `--list-win-mounts` (no deps) → resolve Windows → single `require_bt_dir_access()` check → `--list` → conditional sync loop with `_reset_windows_state()` per mount.
+- **Structured `run()` flow**: `--list-win-mounts` (no deps, early return) → resolve Windows → single `require_bt_dir_access()` check → `--list` → conditional sync loop with `_reset_windows_state()` per mount.
+- **Dry-run output**: `sync_devices()` shows "would be synced" and `sync_all()` shows "...done (dry run)" when dry-run is active.
+- **BLE key mapping**: `windows/keymaps.py` is the single source of truth for optional and Windows-only BLE registry fields; reader and writer both derive their maps from it.
 
 ### Data Flow
 

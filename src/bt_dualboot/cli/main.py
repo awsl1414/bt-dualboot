@@ -229,6 +229,7 @@ def print_devices_list(
 
     if bot is True:
         if any_device:
+            assert devices is not None  # guaranteed by any_device check
             show_adapter = _has_multiple_adapters(devices)
             for device in devices:
                 if show_adapter:
@@ -243,6 +244,8 @@ def print_devices_list(
         print_header(caption)
 
         if any_device:
+            assert devices is not None  # guaranteed by any_device check
+
             if annotation is not None:
                 print()
                 print(annotation)
@@ -329,12 +332,10 @@ class Application:
         )
 
         # Show devices without pairing key (unsyncable)
-        reader = LinuxDeviceReader()
-        _, unsyncable = reader.read_all()
         print_devices_list(
             "missing_key",
             "Missing pairing key",
-            devices=unsyncable,
+            devices=sync_service.devices_unsyncable(),
             annotation="Following devices do not have a pairing key and cannot be synced",
             bot=self.opts.bot,
         )
@@ -357,7 +358,8 @@ class Application:
     def sync_devices(self, macs: list[str]) -> None:
         with no_device_error_handler():
             self._sync_service().push(macs, dry_run=self.is_dry_run())
-            print(f"synced {', '.join(macs)} successfully")
+            status = "would be synced" if self.is_dry_run() else "synced"
+            print(f"{status} {', '.join(macs)} successfully")
 
     def sync_all(self) -> None:
         sync_service = self._sync_service()
@@ -377,15 +379,17 @@ class Application:
                 )
 
                 sync_service.push(devices_for_push, dry_run=self.is_dry_run())
-                print("...done")
+                print("...done (dry run)" if self.is_dry_run() else "...done")
 
     def _has_sync_actions(self) -> bool:
         return self.opts.sync is not None or self.opts.sync_all is True
 
     def run(self) -> None:
-        # --list-win-mounts is a diagnostic command, works without Windows mounted
+        # --list-win-mounts is a diagnostic command, works without Windows/BT
         if self.opts.list_win_mounts:
             self.list_win_mounts()
+            if not self.opts.list and not self._has_sync_actions():
+                return
 
         # Resolve Windows location (needed for --list and sync actions)
         win_mounts = resolve_windows_location(self._opts_win_mount_point(), bot=self.opts.bot)

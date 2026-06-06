@@ -23,14 +23,31 @@ class LinuxDeviceReader:
         """Return (syncable, unsyncable) device lists.
 
         Unsyncable devices have no LinkKey or LongTermKey in their info file.
+        Devices are deduplicated by (mac, adapter_mac) — if both info and settings
+        files exist for the same device, only the first successfully parsed entry is kept.
         """
         syncable: list[BluetoothDevice] = []
         unsyncable: list[BluetoothDevice] = []
+        seen: set[tuple[str, str]] = set()
+
         for path in self._device_paths():
+            is_syncable = True
             try:
-                syncable.append(parse_device(path))
+                device = parse_device(path)
             except NotSyncableDeviceError:
-                unsyncable.append(self._build_unsyncable_device(path))
+                device = self._build_unsyncable_device(path)
+                is_syncable = False
+
+            identity = (device.mac, device.adapter_mac)
+            if identity in seen:
+                continue
+            seen.add(identity)
+
+            if is_syncable:
+                syncable.append(device)
+            else:
+                unsyncable.append(device)
+
         return syncable, unsyncable
 
     def _device_paths(self) -> list[str]:

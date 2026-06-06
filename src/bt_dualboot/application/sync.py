@@ -1,6 +1,7 @@
 import dataclasses
 from collections.abc import Generator
 from contextlib import contextmanager
+from typing import cast
 
 from bt_dualboot.domain.enums import DeviceSource
 from bt_dualboot.domain.models import BluetoothDevice
@@ -32,9 +33,11 @@ class SyncService:
         self._windows_reader = windows_reader
         self._windows_writer = windows_writer
         self._index_cache: dict[str, list[BluetoothDevice]] | None = None
+        self._unsyncable_devices: list[BluetoothDevice] | None = None
 
     def flush_cache(self) -> None:
         self._index_cache = None
+        self._unsyncable_devices = None
 
     @contextmanager
     def no_cache(self) -> Generator[None]:
@@ -49,7 +52,20 @@ class SyncService:
 
         index: dict[str, list[BluetoothDevice]] = {}
 
-        for device in self._linux_reader.read():
+        # Use read_all() if available to capture unsyncable devices in one pass
+        linux_reader = self._linux_reader
+        read_all = getattr(linux_reader, "read_all", None)
+        if callable(read_all):
+            try:
+                syncable, unsyncable = cast("tuple[list[BluetoothDevice], list[BluetoothDevice]]", read_all())
+                self._unsyncable_devices = unsyncable
+                linux_devices = syncable
+            except (ValueError, TypeError):
+                linux_devices = linux_reader.read()
+        else:
+            linux_devices = linux_reader.read()
+
+        for device in linux_devices:
             index.setdefault(device.mac, []).append(device)
 
         for device in self._windows_reader.read():
@@ -105,6 +121,11 @@ class SyncService:
                 if device.source == DeviceSource.LINUX and (device.mac, device.adapter_mac) not in paired_keys:
                     absent.append(device)
         return absent
+
+    def devices_unsyncable(self) -> list[BluetoothDevice]:
+        """Returns Linux devices that have no pairing key (LinkKey/LongTermKey) and cannot be synced"""
+        self._index_devices()  # ensure cache is populated
+        return self._unsyncable_devices or []
 
     def _param_get_macs_list(self, device_or_mac_or_list: DeviceOrMacList) -> list[str]:
         """Align plural argument to list of devices MACs"""

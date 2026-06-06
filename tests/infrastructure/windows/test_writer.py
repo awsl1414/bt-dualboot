@@ -93,5 +93,5 @@ class TestBuildImportDict:
         assert '"Address"' in section
         assert section['"Address"'] == "hex(b):ba,80,01,0c,6c,c0,00,00"
         assert '"AddressType"' in section
-        assert '"CEntralIRKStatus"' in section
+        assert '"CentralIRKStatus"' in section
         assert '"AuthReq"' in section

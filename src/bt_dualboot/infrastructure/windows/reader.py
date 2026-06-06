@@ -3,6 +3,7 @@ from bt_dualboot.domain.models import BluetoothDevice
 from bt_dualboot.infrastructure.registry.hive import WindowsRegistry
 
 from .convert import hex_string_from_reg, int_from_le_reg_value, is_mac_reg_key, mac_from_reg_key
+from .keymaps import reader_optional_key_map, reader_windows_only_key_map
 from .parser import (
     _DEFAULT_EDIV,
     _DEFAULT_ENC_SIZE,
@@ -65,22 +66,13 @@ class WindowsDeviceReader:
             "EDiv": str(int_from_le_reg_value(section.get("ediv", _DEFAULT_EDIV))),
             "Rand": str(int_from_le_reg_value(section.get("erand", _DEFAULT_ERAND))),
         }
-        optional_key_map: dict[str, str] = {
-            "IRK": "irk",
-            "CSRK": "csrk",
-            "CSRKInbound": "csrkinbound",
-        }
+        optional_key_map = reader_optional_key_map()
         for data_key, registry_key in optional_key_map.items():
             if registry_key in section:
                 pairing_data[data_key] = hex_string_from_reg(section[registry_key])
 
         # Windows-only fields preserved for round-trip (Issue #33)
-        windows_only_key_map: dict[str, str] = {
-            "Address": "address",
-            "AddressType": "addresstype",
-            "AuthReq": "authreq",
-            "CentralIRKStatus": "centralirkstatus",
-        }
+        windows_only_key_map = reader_windows_only_key_map()
         for data_key, registry_key in windows_only_key_map.items():
             if registry_key in section:
                 pairing_data[data_key] = section[registry_key]
