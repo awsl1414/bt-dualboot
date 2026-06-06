@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A CLI tool that syncs Bluetooth pairing keys between Linux and Windows on dual-boot systems. It reads Linux pairing keys from `/var/lib/bluetooth/` and writes them into the Windows registry hive file via `chntpw/reged`. Requires root to run. Fork of [x2es/bt-dualboot](https://github.com/x2es/bt-dualboot), maintained on the `dev` branch.
+A CLI tool that syncs Bluetooth pairing keys between Linux and Windows on dual-boot systems. It reads Linux pairing keys from `/var/lib/bluetooth/` and writes them into the Windows registry hive file via `chntpw/reged`. Auto-elevates to root via sudo when needed (`--no-elevate` to disable). Fork of [x2es/bt-dualboot](https://github.com/x2es/bt-dualboot), maintained on the `dev` branch.
 
 ## Commands
 
@@ -40,17 +40,19 @@ src/bt_dualboot/
 │   ├── mount.py             # Windows partition discovery
 │   ├── linux/
 │   │   ├── parser.py        # INI parsing → BluetoothDevice
-│   │   └── reader.py        # LinuxDeviceReader(bt_dir=...)
+│   │   └── reader.py        # LinuxDeviceReader(bt_dir=...), read_all()
 │   ├── windows/
 │   │   ├── parser.py        # Registry section parsing
 │   │   ├── reader.py        # WindowsDeviceReader
 │   │   ├── convert.py       # hex/MAC/registry conversions (pure functions)
 │   │   └── writer.py        # WindowsDeviceWriter
 │   └── registry/
-│       └── hive.py          # WindowsRegistry (chntpw/reged wrapper)
+│       ├── hive.py          # WindowsRegistry (chntpw/reged wrapper)
+│       └── resolve.py       # resolve_path_ci() case-insensitive NTFS path
 │
 └── cli/                     # CLI interface (composition root)
-    └── main.py              # argparse + Application
+    ├── main.py              # argparse + Application
+    └── privilege.py         # sudo auto-elevation
 ```
 
 ### Dependency Direction
@@ -73,6 +75,9 @@ cli             ← application/ + domain/ + infrastructure/ (composition root)
 - **GUI-ready**: `SyncService` has no print/argparse/I/O. Future PySide6 GUI can directly reuse it.
 - **No `__post_init__`**: Auto-derivation logic (pairing_type default, Key injection) lives in parser layer.
 - **Parameterized readers**: `LinuxDeviceReader(bt_dir=...)` eliminates `@patch` in tests.
+- **Sudo auto-elevation**: `cli/privilege.py` auto re-execs under sudo. `--no-elevate` to disable.
+- **Case-insensitive path**: `resolve_path_ci()` handles NTFS mounts where Windows paths differ in case (e.g. `system` vs `SYSTEM`).
+- **Unsyncable devices**: `LinuxDeviceReader.read_all()` returns both syncable and unsyncable devices; CLI shows "Missing pairing key" section.
 
 ### Data Flow
 
@@ -102,4 +107,4 @@ All source code uses Python 3.13+ type annotations:
 - **ruff**: py313 target, 120 line length, rules: E/W/F/I/UP/B/SIM/TCH, `known-first-party = ["bt_dualboot"]`
 - **Python**: requires >=3.13
 - **External dep**: `chntpw` must be installed on the system (provides `reged`)
-- **Debug mode**: `DEBUG=1 bt-dualboot` enables verbose output
+- **Debug mode**: `DEBUG=1 bt-dualboot` enables verbose output (preserved across sudo elevation)

@@ -27,8 +27,9 @@ Partition should be mounted with [write access](#troubleshooting-windows-partiti
 **2. Sync all devices available for sync**
 
 ```console
-$ sudo bt-dualboot --sync-all
+$ bt-dualboot --sync-all
 
+Elevating privileges via sudo...
 Syncing...
 ==========
  [C2:9E:1D:E2:3D:A5] Keyboard K380
@@ -37,7 +38,7 @@ Syncing...
 ```
 
 NOTES:
-  (i) **sudo** tip: this tool needs read-only access to bluetooth devices configuration files which is inaccessible for regular user.
+  (i) **Auto sudo**: the tool automatically elevates via sudo when root is needed. Use `--no-elevate` to disable.
   (ii) [--backup vs --no-backup](#--backup-vs---no-backup): you will be asked about your Windows Registry backup strategy
   (iii) use `--dry-run` to preview any command effects
 
@@ -46,7 +47,7 @@ NOTES:
 1. List devices info
 
 ```console
-$ sudo bt-dualboot -l
+$ bt-dualboot -l
 
 Works both in Linux and Windows
 ===============================
@@ -72,7 +73,7 @@ Following devices unavailable for sync unless you boot Windows and pair them
 2. Sync devices using MAC
 
 ```console
-$ sudo bt-dualboot --sync C2:9E:1D:E2:3D:A5
+$ bt-dualboot --sync C2:9E:1D:E2:3D:A5
 
 Syncing...
 ==========
@@ -108,7 +109,7 @@ or with pipx:
 $ pipx install bt-dualboot
 ```
 
-NOTES: **sudo** - application requires read-only access to bluetooth devices configuration files which is inaccessible for regular user.
+NOTES: The tool automatically elevates to root via sudo when needed. Use `--no-elevate` to run without auto-elevation.
 
 ### Supported OS
 
@@ -131,7 +132,7 @@ Windows Registry update performed in the safe way using `chntpw/reged` without c
 You have to choose your backup strategy explicitly.
 
 ```console
-$ sudo bt-dualboot --sync-all
+$ bt-dualboot --sync-all
 usage: ....
 bt-dualboot: error: Neither backup option given!
 
@@ -163,7 +164,7 @@ Windows locations:
  /media/user/win_foo
  /media/user/win_bar
 
-$ sudo bt-dualboot --win /media/user/win_foo -l
+$ bt-dualboot --win /media/user/win_foo -l
 ```
 
 #### Troubleshooting: Windows partition write access
@@ -237,7 +238,7 @@ Most soulutions is kind of import tool of Windows `*.reg` file into Linux blueto
 
 ```console
 $ bt-dualboot -h
-usage: bt-dualboot [-h] [-l] [--list-win-mounts] [--bot] [--dry-run] [--win MOUNT] [--sync MAC [MAC ...]] [--sync-all] [-n] [-b [path]]
+usage: bt-dualboot [-h] [-l] [--list-win-mounts] [--bot] [--dry-run] [--win MOUNT] [--sync MAC [MAC ...]] [--sync-all] [-n] [-b [path]] [--no-elevate]
 
 Sync bluetooth keys from Linux to Windows.
 
@@ -259,6 +260,8 @@ Backup Windows Registry:
   -n, --no-backup       process without backup
   -b [path], --backup [path]
                         path to backup directory, default: /var/backup/bt-dualboot
+
+  --no-elevate          do not auto-elevate to root via sudo
 ```
 
 ## Next releases
