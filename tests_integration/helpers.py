@@ -101,7 +101,7 @@ def cli_result(cmd_opts, sudo=False, fake_time=None, launcher=None):
         cli_cmd = os.path.join(project_root(), cli_name())
 
     if isinstance(cli_cmd, str):
-        cli_cmd = [ cli_cmd ]
+        cli_cmd = [cli_cmd]
 
     cmd = [*cli_cmd, *cmd_opts]
 
@@ -136,7 +136,7 @@ def snapshot_cli_result(snapshot_tool, cmd_opts, sudo=False, context=None, **kwr
     Saves snapshot for stdout and returncode+stderr
 
     Args:
-        snapshot_tool: `snapshot` fixture (currently pytest-snapshot API, awaiting syrupy migration)
+        snapshot_tool: syrupy `snapshot` fixture
         cmd_opts (list): list of command options for subprocess.run
         sudo (bool): invoke with sudo
 
@@ -166,15 +166,8 @@ def snapshot_cli_result(snapshot_tool, cmd_opts, sudo=False, context=None, **kwr
 
     output = "\n".join(output)
 
-    try:
-        yield res
-        snapshot_tool.assert_match(output, "output")
-    except Exception as err:
-        message = err.args[0] or ""
-        print("SNAPSHOT CONTENT:")
-        print(output)
-        print(f"\n{err.__class__.__name__}: {message}\n{err.args[1:]}")
-        raise err
+    yield res
+    assert output == snapshot_tool
 
 
 def sudo_unlink(filename):

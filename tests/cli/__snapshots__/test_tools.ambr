@@ -1,0 +1,24 @@
+# serializer version: 1
+# name: Test__print_devices_list.test_none
+  '''
+  
+  Caption
+  =======
+  
+  not found
+  
+  '''
+# ---
+# name: Test__print_devices_list.test_two_devices
+  '''
+  
+  Caption
+  =======
+  
+  The Annotation
+  
+   [AA:BB:CC:11] Device Name #1
+   [AA:BB:CC:22] Device Name #2
+  
+  '''
+# ---

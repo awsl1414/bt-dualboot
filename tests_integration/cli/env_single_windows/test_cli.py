@@ -10,11 +10,9 @@ from tests_integration.helpers import cli_result, snapshot_cli_result, sudo_unli
 from tests.conftest import (
     test_scheme,
     import_devices,
-
     # valid for --sync
     MAC_NEED_SYNC_1,
     MAC_NEED_SYNC_2,
-
     # not valid for --sync
     # MAC_NO_WIN_PAIR_2,
     UNKNOWN_MAC_1,
@@ -36,9 +34,7 @@ def with_win(cmd_opts):
 
 
 def filter_devices_macs(stdout, section_id):
-    return [
-        line.split(" ")[1] for line in stdout.split("\n") if line != "" and line.find(section_id) == 0
-    ]
+    return [line.split(" ")[1] for line in stdout.split("\n") if line != "" and line.find(section_id) == 0]
 
 
 def snapshot_cli(*args, context=CLI_CONTEXT, **kwrd):
@@ -81,9 +77,9 @@ def assert_hive_backup_ok(tmpdir, target_backup_path, should_absent=False):
     if should_absent is True:
         assert os.path.exists(backup_file_path) is False, "Hive backup should NOT exist"
     else:
-        assert filecmp.cmp(
-            reg_reference_file_path, backup_file_path, shallow=False
-        ), "Hive backup should equal to source"
+        assert filecmp.cmp(reg_reference_file_path, backup_file_path, shallow=False), (
+            "Hive backup should equal to source"
+        )
 
         os.unlink(reg_reference_file_path)
 
@@ -163,10 +159,7 @@ def test_backup_without_sync(snapshot):
     cmd_opts = ["-l", "--backup"]
     for res in snapshot_cli_win(snapshot, cmd_opts, sudo=True):
         retcode, stderr = itemgetter("retcode", "stderr")(res)
-        assert (
-            stderr.find("--backup/--no-backup options makes sense only with --sync/--sync-all options")
-            > 0
-        )
+        assert stderr.find("--backup/--no-backup options makes sense only with --sync/--sync-all options") > 0
         assert retcode == 2
 
 
@@ -175,10 +168,7 @@ def test_no_backup_without_sync(snapshot):
     cmd_opts = ["-l", "--no-backup"]
     for res in snapshot_cli_win(snapshot, cmd_opts, sudo=True):
         retcode, stderr = itemgetter("retcode", "stderr")(res)
-        assert (
-            stderr.find("--backup/--no-backup options makes sense only with --sync/--sync-all options")
-            > 0
-        )
+        assert stderr.find("--backup/--no-backup options makes sense only with --sync/--sync-all options") > 0
         assert retcode == 2
 
 
@@ -210,6 +200,7 @@ def test_list_bot_sudo(snapshot):
     cmd_opts = ["-l", "--bot"]
     for res in snapshot_cli_win(snapshot, cmd_opts, sudo=True):
         assert res["retcode"] == 0
+
 
 # (root) # python3 -m bt_dualboot -l --bot
 def test_list_as_module_bot_sudo(snapshot):
@@ -258,15 +249,6 @@ class BaseTestSync:
         example_dir = tmpdir / test_class / test_method
         example_dir.mkdir(parents=True)
         return example_dir
-
-    @fixture
-    def suite_snapshot(self, snapshot):
-        """Append class name to snapshot path"""
-        default_dir = snapshot.snapshot_dir
-        test_name = default_dir.parts[-1]
-        test_class = self.__class__.__name__
-        snapshot.snapshot_dir = default_dir.parent / test_class / test_name
-        return snapshot
 
     # @override
     def assert_after(self, expected_needs_sync):
@@ -373,10 +355,10 @@ class TestBackupSynonyms(BaseTestSync):
 
 
 class TestSync(BaseTestSync):
-    def test_require_backup(self, suite_snapshot):
+    def test_require_backup(self, snapshot):
         """should die with backup options suggestion"""
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2], unset_backup=True)
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = "Neither backup option given"
             assert stderr.find(expected_error) >= 0
@@ -384,7 +366,7 @@ class TestSync(BaseTestSync):
 
         self.assert_nothing_changed()
 
-    def test_backup(self, suite_snapshot, example_tmpdir):
+    def test_backup(self, snapshot, example_tmpdir):
         """should backup Hive file to specified path"""
         # subdir doesn't exist, backup method should create it
         target_backup_path = str(example_tmpdir / "subdir")
@@ -394,7 +376,7 @@ class TestSync(BaseTestSync):
             example_tmpdir, target_backup_path, should_absent=self.is_dry_run()
         ) as backup_context:
             fake_time = backup_context["fake_time"]
-            for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True, fake_time=fake_time):
+            for res in snapshot_cli(snapshot, cmd_opts, sudo=True, fake_time=fake_time):
                 retcode, stdout = itemgetter("retcode", "stdout")(res)
                 expected_output = f"synced {MAC_NEED_SYNC_2} successfully"
                 assert stdout.find(expected_output) >= 0
@@ -402,7 +384,7 @@ class TestSync(BaseTestSync):
 
         self.assert_after([MAC_NEED_SYNC_1])
 
-    def test_backup_default(self, suite_snapshot, example_tmpdir):
+    def test_backup_default(self, snapshot, example_tmpdir):
         """should backup Hive file to default backup path"""
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2, "--backup"])
 
@@ -410,7 +392,7 @@ class TestSync(BaseTestSync):
             example_tmpdir, DEFAULT_BACKUP_PATH, should_absent=self.is_dry_run()
         ) as backup_context:
             fake_time = backup_context["fake_time"]
-            for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True, fake_time=fake_time):
+            for res in snapshot_cli(snapshot, cmd_opts, sudo=True, fake_time=fake_time):
                 retcode, stdout = itemgetter("retcode", "stdout")(res)
                 expected_output = f"synced {MAC_NEED_SYNC_2} successfully"
                 assert stdout.find(expected_output) >= 0
@@ -419,9 +401,9 @@ class TestSync(BaseTestSync):
         self.assert_after([MAC_NEED_SYNC_1])
 
     # --sync MAC    => After: One device to sync left
-    def test_single_mac(self, suite_snapshot):
+    def test_single_mac(self, snapshot):
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stdout = itemgetter("retcode", "stdout")(res)
             expected_output = f"synced {MAC_NEED_SYNC_2} successfully"
             assert stdout.find(expected_output) >= 0
@@ -430,10 +412,10 @@ class TestSync(BaseTestSync):
         self.assert_after([MAC_NEED_SYNC_1])
 
     # --sync MAC MAC    => After: No devices to sync
-    def test_multipe_macs(self, suite_snapshot):
+    def test_multipe_macs(self, snapshot):
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2, MAC_NEED_SYNC_1])
 
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stdout = itemgetter("retcode", "stdout")(res)
             expected_output = f"synced {MAC_NEED_SYNC_2}, {MAC_NEED_SYNC_1} successfully"
             assert stdout.find(expected_output) >= 0
@@ -441,21 +423,21 @@ class TestSync(BaseTestSync):
 
         self.assert_after(["NONE"])
 
-    def test__when_no_devices__sync_single(self, suite_snapshot):
+    def test__when_no_devices__sync_single(self, snapshot):
         # sync all devices => No devices to sync left
         cli_result(with_win(["--sync-all", "--no-backup"]), sudo=True)
 
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = f"Can't push {MAC_NEED_SYNC_2}! Not found or already in sync!"
             assert stderr.find(expected_error) >= 0
             assert retcode == 1
 
     # --sync WRONG_MAC              => Error
-    def test_wrong_mac(self, suite_snapshot):
+    def test_wrong_mac(self, snapshot):
         cmd_opts = self.build_opts(["--sync", UNKNOWN_MAC_1])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = f"Can't push {UNKNOWN_MAC_1}! Not found"
             assert stderr.find(expected_error) >= 0
@@ -464,9 +446,9 @@ class TestSync(BaseTestSync):
         self.assert_nothing_changed()
 
     # --sync WRONG_MAC VALID_MAC    => Error
-    def test_valid_and_wrong_mac(self, suite_snapshot):
+    def test_valid_and_wrong_mac(self, snapshot):
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2, UNKNOWN_MAC_2])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = f"Can't push {UNKNOWN_MAC_2}! Not found"
             assert stderr.find(expected_error) >= 0
@@ -475,9 +457,9 @@ class TestSync(BaseTestSync):
         self.assert_nothing_changed()
 
     # --sync                        => Error
-    def test_missing_mac(self, suite_snapshot):
+    def test_missing_mac(self, snapshot):
         cmd_opts = self.build_opts(["--sync"])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = "error: argument --sync: expected at least one argument"
             assert stderr.find(expected_error) >= 0
@@ -485,9 +467,9 @@ class TestSync(BaseTestSync):
 
         self.assert_nothing_changed()
 
-    def test_wrong_separator(self, suite_snapshot):
+    def test_wrong_separator(self, snapshot):
         cmd_opts = self.build_opts(["--sync", f"{MAC_NEED_SYNC_1},{MAC_NEED_SYNC_2}"])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = "error: argument --sync: unexpected characters! Allowed letters A-F, digits 0-9 and colon, use space as separator."
             assert stderr.find(expected_error) >= 0
@@ -495,10 +477,10 @@ class TestSync(BaseTestSync):
 
         self.assert_nothing_changed()
 
-    def test_case_insensive(self, suite_snapshot):
+    def test_case_insensive(self, snapshot):
         cmd_opts = self.build_opts(["--sync", MAC_NEED_SYNC_2.lower(), MAC_NEED_SYNC_1.lower()])
 
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stdout = itemgetter("retcode", "stdout")(res)
             expected_output = f"synced {MAC_NEED_SYNC_2}, {MAC_NEED_SYNC_1} successfully"
             assert stdout.find(expected_output) >= 0
@@ -520,10 +502,10 @@ class TestSyncAll(BaseTestSync):
         assert retcode == 0
         self.assert_after(["NONE"])
 
-    def test_require_backup(self, suite_snapshot):
+    def test_require_backup(self, snapshot):
         """should die with backup options suggestion"""
         cmd_opts = self.build_opts(["--sync-all"], unset_backup=True)
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stderr = itemgetter("retcode", "stderr")(res)
             expected_error = "Neither backup option given"
             assert stderr.find(expected_error) >= 0
@@ -531,7 +513,7 @@ class TestSyncAll(BaseTestSync):
 
         self.assert_nothing_changed()
 
-    def test_backup(self, suite_snapshot, example_tmpdir):
+    def test_backup(self, snapshot, example_tmpdir):
         """should backup Hive file to specified path"""
         # subdir doesn't exist, backup method should create it
         target_backup_path = str(example_tmpdir / "subdir")
@@ -541,24 +523,22 @@ class TestSyncAll(BaseTestSync):
             example_tmpdir, target_backup_path, should_absent=self.is_dry_run()
         ) as backup_context:
             fake_time = backup_context["fake_time"]
-            for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True, fake_time=fake_time):
+            for res in snapshot_cli(snapshot, cmd_opts, sudo=True, fake_time=fake_time):
                 self.assert_all_synced(res)
 
-    def test_backup_default(self, suite_snapshot, tmpdir):
+    def test_backup_default(self, snapshot, tmpdir):
         """should backup Hive file to default backup path"""
         cmd_opts = self.build_opts(["--sync-all", "--backup"])
 
-        with assert_hive_backup_ok(
-            tmpdir, DEFAULT_BACKUP_PATH, should_absent=self.is_dry_run()
-        ) as backup_context:
+        with assert_hive_backup_ok(tmpdir, DEFAULT_BACKUP_PATH, should_absent=self.is_dry_run()) as backup_context:
             fake_time = backup_context["fake_time"]
-            for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True, fake_time=fake_time):
+            for res in snapshot_cli(snapshot, cmd_opts, sudo=True, fake_time=fake_time):
                 self.assert_all_synced(res)
 
     # --sync-all    => After: No devices to sync
-    def test_sync_all(self, suite_snapshot):
+    def test_sync_all(self, snapshot):
         cmd_opts = self.build_opts(["--sync-all"])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stdout = itemgetter("retcode", "stdout")(res)
             assert stdout.find(MAC_NEED_SYNC_2) >= 0
             assert stdout.find(MAC_NEED_SYNC_1) >= 0
@@ -568,9 +548,9 @@ class TestSyncAll(BaseTestSync):
         self.assert_after(["NONE"])
 
     # --sync-all --bot    => After: No devices to sync
-    def test_sync_all_bot(self, suite_snapshot):
+    def test_sync_all_bot(self, snapshot):
         cmd_opts = self.build_opts(["--sync-all", "--bot"])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             retcode, stdout = itemgetter("retcode", "stdout")(res)
             assert stdout.find(MAC_NEED_SYNC_2) >= 0
             assert stdout.find(MAC_NEED_SYNC_1) >= 0
@@ -580,21 +560,21 @@ class TestSyncAll(BaseTestSync):
         self.assert_after(["NONE"])
 
     # --sync-all    => After: No devices to sync
-    def test__when_no_devices__sync_all(self, suite_snapshot):
+    def test__when_no_devices__sync_all(self, snapshot):
         cmd_opts = self.build_opts(["--sync-all"])
 
         # sync all devices => No devices to sync left
         cli_result(cmd_opts, sudo=True)
 
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             assert res["retcode"] == 0
 
         self.assert_after(["NONE"])
 
     # --sync-all --sync MAC     => Error
-    def test_sync_all_and_sync(self, suite_snapshot):
+    def test_sync_all_and_sync(self, snapshot):
         cmd_opts = self.build_opts(["--sync-all", "--sync", "123"])
-        for res in snapshot_cli(suite_snapshot, cmd_opts, sudo=True):
+        for res in snapshot_cli(snapshot, cmd_opts, sudo=True):
             assert res["retcode"] == 2
 
         self.assert_nothing_changed()

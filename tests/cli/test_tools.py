@@ -1,7 +1,5 @@
 import re
 
-import pytest
-
 from bt_dualboot import __version__
 from bt_dualboot.models.bluetooth_device import BluetoothDevice
 from bt_dualboot.cli.tools import print_devices_list
@@ -50,7 +48,6 @@ class Test__print_devices_list:
         stdout, stderr = capsys.readouterr()
         assert stdout == "cap NONE\n"
 
-    @pytest.mark.skip(reason="awaiting syrupy migration")
     def test_two_devices(self, capsys, snapshot):
         _print_with_common_args(
             [
@@ -59,10 +56,9 @@ class Test__print_devices_list:
             ],
         )
         stdout, stderr = capsys.readouterr()
-        snapshot.assert_match(stdout, "stdout")
+        assert stdout == snapshot
 
-    @pytest.mark.skip(reason="awaiting syrupy migration")
     def test_none(self, capsys, snapshot):
         _print_with_common_args([])
         stdout, stderr = capsys.readouterr()
-        snapshot.assert_match(stdout, "stdout")
+        assert stdout == snapshot
