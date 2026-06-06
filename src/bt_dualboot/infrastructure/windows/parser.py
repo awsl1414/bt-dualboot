@@ -9,6 +9,10 @@ _DEFAULT_ENC_SIZE = "dword:00000010"
 _DEFAULT_EDIV = "dword:00000000"
 _DEFAULT_ERAND = "hex(b):00,00,00,00,00,00,00,00"
 
+# BLE default encryption size in bytes (128-bit key = 16 bytes).
+# Used by writer as fallback when EncSize is missing from pairing_data.
+_DEFAULT_ENC_SIZE_BYTES = "16"
+
 
 def extract_adapter_mac(from_section_key: str) -> str | None:
     """Extracts adapter MAC from section key"""

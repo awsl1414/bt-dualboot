@@ -5,10 +5,10 @@ from .enums import DeviceSource, PairingType
 
 @dataclass(slots=True, frozen=True, kw_only=True)
 class BluetoothDevice:
-    mac: str | None = None
+    mac: str
+    adapter_mac: str
     name: str | None = None
     pairing_key: str | None = None
-    adapter_mac: str | None = None
     klass: str | None = None
     source: DeviceSource | None = None
     pairing_type: PairingType | None = None

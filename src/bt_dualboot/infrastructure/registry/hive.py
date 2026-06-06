@@ -11,14 +11,15 @@ from .resolve import resolve_path_ci
 
 WINDOWS10_REGISTRY_PATH: str = os.path.join("Windows", "System32", "config", "SYSTEM")
 
+# reged (from chntpw) returns 2 on successful import, not the conventional 0.
+_REGED_SUCCESS_EXIT_CODE = 2
 
-def _subprocess_output_opts() -> dict[str, object]:
+
+def _run_quiet(cmd: list[str]) -> subprocess.CompletedProcess[bytes]:
+    """Run subprocess, suppressing output unless debug mode."""
     if is_debug():
-        return {}
-    return {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-    }
+        return subprocess.run(cmd)
+    return subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 class WindowsRegistry:
@@ -51,6 +52,7 @@ class WindowsRegistry:
         if self.registry_file_path is not None:
             return self.registry_file_path
 
+        assert self.windows_path is not None
         return resolve_path_ci(self.windows_path, self.relative_registry_path)
 
     def export(self, reg_key: str) -> str:
@@ -65,7 +67,7 @@ class WindowsRegistry:
                 reg_key,
                 exported_reg_filename,
             ]
-            subprocess.run(export_cmd, **_subprocess_output_opts())
+            _run_quiet(export_cmd)
 
             with open(exported_reg_filename) as f:
                 # skip first line "Windows Registry Editor Version 5.00" for ConfigParser compability
@@ -134,7 +136,7 @@ class WindowsRegistry:
                 self.exchange_prefix(),
                 tmp_filename,
             ]
-            res = subprocess.run(import_cmd, **_subprocess_output_opts())
+            res = _run_quiet(import_cmd)
 
             if is_debug():
                 print("Importing into Windows registry...")
@@ -143,7 +145,7 @@ class WindowsRegistry:
 
             os.unlink(tmp_filename)
 
-            if res.returncode != 2:
+            if res.returncode != _REGED_SUCCESS_EXIT_CODE:
                 raise RuntimeError(
                     "Data couldn't be saved! See reged output for details using DEBUG=1. Try .import_dict(safe=False)"
                 )

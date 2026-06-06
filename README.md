@@ -150,6 +150,36 @@ bt-dualboot: error: Neither backup option given!
         as possible after ensure Windows boots and works correctly.
 ```
 
+### Restoring from backup
+
+If Windows fails to boot after a sync, restore the backup:
+
+**1. Boot into Linux and find your backup file**
+
+```console
+$ ls /var/backup/bt-dualboot/
+SYSTEM-2026-06-07--14-30-00
+```
+
+**2. Mount your Windows partition**
+
+```console
+$ sudo mount /dev/sdXn /mnt/windows
+```
+
+Use `lsblk -f` to find the correct partition if unsure.
+
+**3. Replace the Windows registry hive**
+
+```console
+$ sudo cp /mnt/windows/Windows/System32/config/SYSTEM /mnt/windows/Windows/System32/config/SYSTEM.broken
+$ sudo cp /var/backup/bt-dualboot/SYSTEM-2026-06-07--14-30-00 /mnt/windows/Windows/System32/config/SYSTEM
+```
+
+**4. Reboot into Windows**
+
+If Windows still does not boot, use the Windows Automatic Repair environment to restore from a System Restore point.
+
 ### --win /mnt/win/path/
 
 By default application will recognize and use mounted Windows partition. In case when it didn't found or more than single Windows partition exist you have to provide mount point with `--win` paramter.

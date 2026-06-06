@@ -65,3 +65,33 @@ class TestBuildImportDict:
 
         writer.write_devices([device])
         # Should not raise — same-size update via safe=True
+
+    def test_ltk_device_preserves_windows_only_fields(self, windows_registry):
+        writer = self._make_writer(windows_registry)
+        device = BluetoothDevice(
+            mac="D5:1F:FA:42:1C:4C",
+            adapter_mac="A4:6B:6C:9D:E2:FB",
+            pairing_key="FFEEDDCCBBAA99887766554433221100",
+            pairing_type=PairingType.LONG_TERM_KEY,
+            pairing_data={
+                "Key": "FFEEDDCCBBAA99887766554433221100",
+                "EncSize": "16",
+                "EDiv": "4660",
+                "Rand": "72623859790382856",
+                "IRK": "00112233445566778899AABBCCDDEEFF",
+                "Address": "hex(b):ba,80,01,0c,6c,c0,00,00",
+                "AddressType": "dword:00000000",
+                "CentralIRKStatus": "dword:00000001",
+                "AuthReq": "dword:00000020",
+            },
+        )
+
+        result = writer._build_import_dict([device])
+        section_key = r"ControlSet001\Services\BTHPORT\Parameters\Keys\a46b6c9de2fb\d51ffa421c4c"
+        section = result[section_key]
+
+        assert '"Address"' in section
+        assert section['"Address"'] == "hex(b):ba,80,01,0c,6c,c0,00,00"
+        assert '"AddressType"' in section
+        assert '"CEntralIRKStatus"' in section
+        assert '"AuthReq"' in section

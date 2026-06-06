@@ -24,7 +24,7 @@ def sample_reg_file_path(windows_registry_samples_dir: str) -> str:
 
 
 @fixture
-def registry_file_path(sample_reg_file_path: str, tmp_path: Path) -> str:
+def registry_file_path(sample_reg_file_path: str, tmp_path: Path):  # type: ignore[misc]
     """Making working copy of SYSTEM Hive file"""
     test_reg = str(tmp_path / "SYSTEM")
     shutil.copy(sample_reg_file_path, test_reg)

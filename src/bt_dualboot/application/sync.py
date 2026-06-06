@@ -56,38 +56,55 @@ class SyncService:
             index.setdefault(device.mac, []).append(device)
 
         self._index_cache = index
-        return self._index_cache
+        return index
+
+    def _paired_devices(self) -> list[tuple[BluetoothDevice, BluetoothDevice]]:
+        """Match Linux and Windows devices by (mac, adapter_mac) pair.
+
+        Each pair represents the same device on the same adapter across both OSes.
+        This correctly handles multi-adapter scenarios where the same device MAC
+        is paired to multiple Bluetooth adapters.
+        """
+        index = self._index_devices()
+
+        pairs: list[tuple[BluetoothDevice, BluetoothDevice]] = []
+        for _mac, devices in index.items():
+            linux_by_adapter = {d.adapter_mac: d for d in devices if d.source == DeviceSource.LINUX}
+            windows_by_adapter = {d.adapter_mac: d for d in devices if d.source == DeviceSource.WINDOWS}
+
+            for adapter_mac in linux_by_adapter:
+                if adapter_mac in windows_by_adapter:
+                    pairs.append((linux_by_adapter[adapter_mac], windows_by_adapter[adapter_mac]))
+
+        return pairs
 
     def devices_both_synced(self) -> list[BluetoothDevice]:
         """Returns devices which have the same pairing_key for Linux and Windows"""
-        index = self._index_devices()
-
-        common_devices_macs = [mac for mac, devices in index.items() if len(devices) == 2]
         return [
-            index[mac][0]
-            for mac in common_devices_macs
-            if index[mac][0].pairing_fingerprint() == index[mac][1].pairing_fingerprint()
+            linux_dev
+            for linux_dev, windows_dev in self._paired_devices()
+            if linux_dev.pairing_fingerprint() == windows_dev.pairing_fingerprint()
         ]
 
     def devices_needs_sync(self) -> list[BluetoothDevice]:
         """Returns devices which exist both in Linux and Windows, but have different pairing keys"""
-        index = self._index_devices()
-
-        common_devices_macs = [mac for mac, devices in index.items() if len(devices) == 2]
         return [
-            index[mac][0]
-            for mac in common_devices_macs
-            if index[mac][0].pairing_fingerprint() != index[mac][1].pairing_fingerprint()
+            linux_dev
+            for linux_dev, windows_dev in self._paired_devices()
+            if linux_dev.pairing_fingerprint() != windows_dev.pairing_fingerprint()
         ]
 
     def devices_absent_windows(self) -> list[BluetoothDevice]:
-        """Returns devices which exist only in Linux"""
+        """Returns devices which exist only in Linux (no matching Windows device on same adapter)"""
         index = self._index_devices()
-        return [
-            devices[0]
-            for mac, devices in index.items()
-            if len(devices) == 1 and devices[0].source == DeviceSource.LINUX
-        ]
+        paired_keys = {(linux_dev.mac, linux_dev.adapter_mac) for linux_dev, _windows_dev in self._paired_devices()}
+
+        absent: list[BluetoothDevice] = []
+        for _mac, devices in index.items():
+            for device in devices:
+                if device.source == DeviceSource.LINUX and (device.mac, device.adapter_mac) not in paired_keys:
+                    absent.append(device)
+        return absent
 
     def _param_get_macs_list(self, device_or_mac_or_list: DeviceOrMacList) -> list[str]:
         """Align plural argument to list of devices MACs"""
@@ -135,16 +152,23 @@ class SyncService:
                 if not windows_devices:
                     raise DeviceNotFoundError(f"Can't push {device_mac}! Not found on Windows!")
 
-                device_linux = linux_devices[0]
-                device_windows = windows_devices[0]
+                for device_linux in linux_devices:
+                    matching_windows = [w for w in windows_devices if w.adapter_mac == device_linux.adapter_mac]
+                    if not matching_windows:
+                        continue
 
-                updated = dataclasses.replace(
-                    device_windows,
-                    pairing_key=device_linux.pairing_key,
-                    pairing_type=device_linux.pairing_type,
-                    pairing_data=dict(device_linux.pairing_data),
-                )
-                devices_for_update.append(updated)
+                    device_windows = matching_windows[0]
+                    merged_pairing_data: dict[str, str] = {
+                        **device_windows.pairing_data,
+                        **device_linux.pairing_data,
+                    }
+                    updated = dataclasses.replace(
+                        device_windows,
+                        pairing_key=device_linux.pairing_key,
+                        pairing_type=device_linux.pairing_type,
+                        pairing_data=merged_pairing_data,
+                    )
+                    devices_for_update.append(updated)
 
             if not dry_run:
                 self._windows_writer.write_devices(devices_for_update)

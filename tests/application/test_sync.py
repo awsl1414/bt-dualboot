@@ -1,8 +1,10 @@
 import os
+from unittest.mock import MagicMock
 
 from pytest import fixture
 
 from bt_dualboot.application.sync import SyncService
+from bt_dualboot.domain.enums import DeviceSource, PairingType
 from bt_dualboot.domain.models import BluetoothDevice
 from bt_dualboot.infrastructure.linux.reader import LinuxDeviceReader
 from bt_dualboot.infrastructure.windows.reader import WindowsDeviceReader
@@ -108,7 +110,7 @@ class TestSyncService__push:
         sync_service.devices_needs_sync()
         sync_service._index_cache[SAMPLE_PUSH_MAC1].pop()
 
-        sync_service.push(BluetoothDevice(mac=SAMPLE_PUSH_MAC1))
+        sync_service.push(BluetoothDevice(mac=SAMPLE_PUSH_MAC1, adapter_mac="A4:6B:6C:9D:E2:FB"))
         # EXPECT no exceptions raised
         assert True
 
@@ -121,13 +123,220 @@ class TestSyncService__push:
         self.assert_effect(sync_service)
 
     def test_push_accept_single_bt_instance(self, sync_service):
-        sync_service.push(BluetoothDevice(mac=SAMPLE_PUSH_MAC1))
+        sync_service.push(BluetoothDevice(mac=SAMPLE_PUSH_MAC1, adapter_mac="A4:6B:6C:9D:E2:FB"))
         self.assert_effect(sync_service)
 
     def test_push_accept_list_of_bt_instances(self, sync_service):
-        sync_service.push([BluetoothDevice(mac=SAMPLE_PUSH_MAC1)])
+        sync_service.push([BluetoothDevice(mac=SAMPLE_PUSH_MAC1, adapter_mac="A4:6B:6C:9D:E2:FB")])
         self.assert_effect(sync_service)
 
     def test_push_updates_multiple_devices(self, sync_service):
         sync_service.push([SAMPLE_PUSH_MAC1, SAMPLE_PUSH_MAC2])
         assert sync_service.devices_needs_sync() == []
+
+
+class TestSyncService__PushMerge:
+    """Verify push() merges pairing_data (Issue #33): Linux overrides, Windows-only fields preserved."""
+
+    @staticmethod
+    def _mock_reader(devices: list[BluetoothDevice]) -> MagicMock:
+        reader = MagicMock()
+        reader.read.return_value = devices
+        return reader
+
+    def _make_service(self, linux_devs, win_devs):
+        writer = MagicMock()
+        service = SyncService(self._mock_reader(linux_devs), self._mock_reader(win_devs), writer)
+        service._index_devices()
+        return service, writer
+
+    def test_push_merges_pairing_data_preserves_windows_fields(self):
+        linux_device = BluetoothDevice(
+            mac="AA:BB:CC:DD:EE:FF",
+            source=DeviceSource.LINUX,
+            adapter_mac="A4:6B:6C:9D:E2:FB",
+            pairing_key="AABBCCDD",
+            pairing_type=PairingType.LONG_TERM_KEY,
+            pairing_data={"Key": "AABBCCDD", "EncSize": "16", "EDiv": "100", "Rand": "200"},
+        )
+        windows_device = BluetoothDevice(
+            mac="AA:BB:CC:DD:EE:FF",
+            source=DeviceSource.WINDOWS,
+            adapter_mac="A4:6B:6C:9D:E2:FB",
+            pairing_key="EEFF0011",
+            pairing_type=PairingType.LONG_TERM_KEY,
+            pairing_data={
+                "Key": "EEFF0011",
+                "EncSize": "16",
+                "EDiv": "50",
+                "Rand": "60",
+                "Address": "hex(b):ba,80,01,0c,6c,c0,00,00",
+                "AddressType": "dword:00000000",
+                "CentralIRKStatus": "dword:00000001",
+                "AuthReq": "dword:00000020",
+            },
+        )
+
+        service, writer = self._make_service([linux_device], [windows_device])
+        service.push(["AA:BB:CC:DD:EE:FF"])
+
+        written = writer.write_devices.call_args[0][0]
+        assert len(written) == 1
+        d = written[0]
+        # Linux keys override
+        assert d.pairing_data["Key"] == "AABBCCDD"
+        assert d.pairing_data["EDiv"] == "100"
+        # Windows-only fields preserved
+        assert d.pairing_data["Address"] == "hex(b):ba,80,01,0c,6c,c0,00,00"
+        assert d.pairing_data["AddressType"] == "dword:00000000"
+        assert d.pairing_data["CentralIRKStatus"] == "dword:00000001"
+        assert d.pairing_data["AuthReq"] == "dword:00000020"
+
+
+class TestSyncService__MultiAdapter:
+    """Tests for devices paired on multiple adapters (Issue #10)."""
+
+    @staticmethod
+    def _mock_reader(devices: list[BluetoothDevice]) -> MagicMock:
+        reader = MagicMock()
+        reader.read.return_value = devices
+        return reader
+
+    def _make_service(self, linux_devs, win_devs):
+        writer = MagicMock()
+        service = SyncService(self._mock_reader(linux_devs), self._mock_reader(win_devs), writer)
+        service._index_devices()
+        return service, writer
+
+    def test_same_device_two_adapters_both_need_sync(self):
+        linux_devs = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            ),
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="22:22:22:22:22:22",
+                pairing_key="KEY2",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY2"},
+            ),
+        ]
+        win_devs = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.WINDOWS,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="OLD1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "OLD1"},
+            ),
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.WINDOWS,
+                adapter_mac="22:22:22:22:22:22",
+                pairing_key="OLD2",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "OLD2"},
+            ),
+        ]
+        service, _writer = self._make_service(linux_devs, win_devs)
+        assert len(service.devices_needs_sync()) == 2
+
+    def test_same_device_one_synced_one_not(self):
+        linux_devs = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            ),
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="22:22:22:22:22:22",
+                pairing_key="KEY2",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY2"},
+            ),
+        ]
+        win_devs = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.WINDOWS,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            ),
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.WINDOWS,
+                adapter_mac="22:22:22:22:22:22",
+                pairing_key="OLD2",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "OLD2"},
+            ),
+        ]
+        service, _writer = self._make_service(linux_devs, win_devs)
+
+        synced = service.devices_both_synced()
+        assert len(synced) == 1
+        assert synced[0].adapter_mac == "11:11:11:11:11:11"
+
+        needs_sync = service.devices_needs_sync()
+        assert len(needs_sync) == 1
+        assert needs_sync[0].adapter_mac == "22:22:22:22:22:22"
+
+    def test_push_syncs_all_adapter_pairs(self):
+        linux_devs = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="KEY1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY1"},
+            ),
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.LINUX,
+                adapter_mac="22:22:22:22:22:22",
+                pairing_key="KEY2",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "KEY2"},
+            ),
+        ]
+        win_devs = [
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.WINDOWS,
+                adapter_mac="11:11:11:11:11:11",
+                pairing_key="OLD1",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "OLD1"},
+            ),
+            BluetoothDevice(
+                mac="AA:BB:CC:DD:EE:FF",
+                source=DeviceSource.WINDOWS,
+                adapter_mac="22:22:22:22:22:22",
+                pairing_key="OLD2",
+                pairing_type=PairingType.LINK_KEY,
+                pairing_data={"Key": "OLD2"},
+            ),
+        ]
+        writer = MagicMock()
+        service = SyncService(self._mock_reader(linux_devs), self._mock_reader(win_devs), writer)
+        service._index_devices()
+        service.push(["AA:BB:CC:DD:EE:FF"])
+
+        written = writer.write_devices.call_args[0][0]
+        assert len(written) == 2
+        assert {d.adapter_mac for d in written} == {"11:11:11:11:11:11", "22:22:22:22:22:22"}

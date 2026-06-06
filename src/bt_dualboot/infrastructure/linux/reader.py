@@ -44,8 +44,11 @@ class LinuxDeviceReader:
         from configparser import ConfigParser
 
         macs = re.search("([A-F0-9:]+)/([A-F0-9:]+)/(info|settings)$", path)
-        mac = macs.group(2) if macs else None
-        adapter_mac = macs.group(1) if macs else None
+        if macs is None:
+            raise NotSyncableDeviceError(f"{path}: cannot extract MAC addresses from path")
+
+        mac = macs.group(2)
+        adapter_mac = macs.group(1)
 
         name = None
         if path.endswith("info"):

@@ -1,5 +1,12 @@
 import re
 
+# MAC address = 6 bytes = 12 hex characters (no separators)
+_MAC_HEX_LENGTH = 12
+
+# Registry value format widths
+_DWORD_HEX_WIDTH = 8  # 32-bit = 4 bytes = 8 hex chars
+_QWORD_HEX_WIDTH = 16  # 64-bit = 8 bytes = 16 hex chars
+
 
 def hex_string_to_pairs(hex_string: str) -> list[str]:
     """Convert hex string to pairs array"""
@@ -22,7 +29,7 @@ def hex_string_to_pairs(hex_string: str) -> list[str]:
 
 def is_mac_reg_key(value: str) -> bool:
     """Check is value is valid MAC reg key"""
-    return re.match("^[a-f0-9]{12}$", _unquote(value)) is not None
+    return re.match(f"^[a-f0-9]{{{_MAC_HEX_LENGTH}}}$", _unquote(value)) is not None
 
 
 def mac_from_reg_key(mac_key: str) -> str:
@@ -82,12 +89,12 @@ def int_from_le_reg_value(reg_value: str) -> int:
 
 def int_to_dword_reg_value(value: int | str) -> str:
     """Convert int to Windows registry dword value"""
-    return f"dword:{int(value):08x}"
+    return f"dword:{int(value):0{_DWORD_HEX_WIDTH}x}"
 
 
 def int_to_qword_reg_value(value: int | str) -> str:
     """Convert int to Windows registry qword value (little-endian hex(b))"""
-    pairs = hex_string_to_pairs(f"{int(value):016x}")
+    pairs = hex_string_to_pairs(f"{int(value):0{_QWORD_HEX_WIDTH}x}")
     return f"hex(b):{','.join(pairs[::-1])}"
 
 

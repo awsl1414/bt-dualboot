@@ -1,5 +1,6 @@
 import re
 from configparser import ConfigParser
+from typing import cast
 
 from bt_dualboot.domain.enums import DeviceSource, PairingType
 from bt_dualboot.domain.models import BluetoothDevice
@@ -71,6 +72,7 @@ def extract_info(device_info_path: str) -> dict[str, str | None | dict[str, str]
         pairing_key = link_key
         pairing_data = {"Key": link_key}
     elif long_term_key is not None:
+        assert long_term_key_section is not None
         pairing_type = PairingType.LONG_TERM_KEY
         pairing_key = long_term_key
         pairing_data = {
@@ -114,6 +116,9 @@ def parse_device(device_info_path: str) -> BluetoothDevice:
     macs = extract_macs(device_info_path)
     info = extract_info(device_info_path)
 
+    if macs is None:
+        raise NotSyncableDeviceError(f"{device_info_path}: cannot extract MAC addresses from path")
+
     if info["pairing_key"] is None:
         raise NotSyncableDeviceError(
             f"{device_info_path} has no LinkKey or LongTermKey; device is not syncable by this tool"
@@ -121,11 +126,11 @@ def parse_device(device_info_path: str) -> BluetoothDevice:
 
     return BluetoothDevice(
         source=DeviceSource.LINUX,
-        klass=info["class"],
+        klass=cast("str | None", info["class"]),
         mac=macs["device_mac"],
-        name=info["name"],
-        pairing_key=info["pairing_key"],
+        name=cast("str | None", info["name"]),
+        pairing_key=cast("str | None", info["pairing_key"]),
         adapter_mac=macs["adapter_mac"],
-        pairing_type=info["pairing_type"],
-        pairing_data=info["pairing_data"],
+        pairing_type=cast("PairingType | None", info["pairing_type"]),
+        pairing_data=cast("dict[str, str]", info["pairing_data"]),
     )

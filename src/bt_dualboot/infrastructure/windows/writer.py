@@ -2,7 +2,7 @@ from bt_dualboot.domain.models import BluetoothDevice
 from bt_dualboot.infrastructure.registry.hive import WindowsRegistry
 
 from .convert import hex_string_to_reg_value, int_to_dword_reg_value, int_to_qword_reg_value, mac_to_reg_key
-from .parser import REG_KEY__BLUETOOTH_PAIRING_KEYS
+from .parser import _DEFAULT_ENC_SIZE_BYTES, REG_KEY__BLUETOOTH_PAIRING_KEYS
 
 
 class WindowsDeviceWriter:
@@ -32,7 +32,7 @@ class WindowsDeviceWriter:
     def _build_ltk_section(self, device: BluetoothDevice) -> dict[str, str]:
         section_data: dict[str, str] = {
             '"LTK"': hex_string_to_reg_value(device.pairing_data["Key"]),
-            '"KeyLength"': int_to_dword_reg_value(device.pairing_data.get("EncSize", "16")),
+            '"KeyLength"': int_to_dword_reg_value(device.pairing_data.get("EncSize", _DEFAULT_ENC_SIZE_BYTES)),
             '"EDIV"': int_to_dword_reg_value(device.pairing_data.get("EDiv", "0")),
             '"ERand"': int_to_qword_reg_value(device.pairing_data.get("Rand", "0")),
         }
@@ -44,9 +44,21 @@ class WindowsDeviceWriter:
         for data_key, registry_key in optional_key_map.items():
             if data_key in device.pairing_data:
                 section_data[registry_key] = hex_string_to_reg_value(device.pairing_data[data_key])
+
+        # Windows-only fields preserved from original data (Issue #33)
+        windows_only_key_map: dict[str, str] = {
+            "Address": '"Address"',
+            "AddressType": '"AddressType"',
+            "AuthReq": '"AuthReq"',
+            "CentralIRKStatus": '"CEntralIRKStatus"',
+        }
+        for data_key, registry_key in windows_only_key_map.items():
+            if data_key in device.pairing_data:
+                section_data[registry_key] = device.pairing_data[data_key]
         return section_data
 
     def _build_classic_section(self, device: BluetoothDevice) -> dict[str, str]:
+        assert device.pairing_key is not None
         device_key = f'"{mac_to_reg_key(device.mac)}"'
         pairing_key = hex_string_to_reg_value(device.pairing_key)
         return {device_key: pairing_key}

@@ -118,20 +118,38 @@ def require_univocal_windows_location(user_selected_location: str | None) -> Non
         return
 
     win_locations = locate_windows_mount_points()
-    how_much = len(win_locations)
-    if how_much == 0:
-        how_much = "None"
+    how_many = len(win_locations)
 
-    _invariant_and_halt(
-        len(win_locations) != 1,
-        f"{how_much} Windows locations found, use `--win MOUNT` to point actual Windows location",
-    )
+    if how_many == 0:
+        _invariant_and_halt(
+            True,
+            "No Windows locations found!\n"
+            "Make sure your Windows partition is mounted.\n"
+            "  - List block devices: lsblk -f\n"
+            "  - Mount manually: sudo mount /dev/sdXn /mnt/windows\n"
+            "  - Or specify path: --win /mnt/windows",
+        )
+        return
+
+    if how_many > 1:
+        paths_list = "\n".join(f"  - {loc}" for loc in win_locations)
+        _invariant_and_halt(
+            True,
+            f"Multiple Windows locations found:\n{paths_list}\nUse `--win MOUNT` to specify which one to use.",
+        )
 
 
 def print_header(caption: str) -> None:
     print()
     print(caption)
     print("".join(repeat("=", len(caption))))
+
+
+def _has_multiple_adapters(devices: list[BluetoothDevice] | None) -> bool:
+    if devices is None:
+        return False
+    adapter_macs = {d.adapter_mac for d in devices}
+    return len(adapter_macs) > 1
 
 
 def print_devices_list(
@@ -146,8 +164,12 @@ def print_devices_list(
 
     if bot is True:
         if any_device:
+            show_adapter = _has_multiple_adapters(devices)
             for device in devices:
-                print(f"{section_id} {device.mac} {device.name}")
+                if show_adapter:
+                    print(f"{section_id} {device.mac} {device.adapter_mac} {device.name}")
+                else:
+                    print(f"{section_id} {device.mac} {device.name}")
         else:
             print(f"{section_id} NONE")
         return
@@ -161,8 +183,12 @@ def print_devices_list(
                 print(annotation)
                 print()
 
+            show_adapter = _has_multiple_adapters(devices)
             for device in devices:
-                print(f" [{device.mac}] {device.name}")
+                if show_adapter:
+                    print(f" [{device.mac}] ({device.adapter_mac}) {device.name}")
+                else:
+                    print(f" [{device.mac}] {device.name}")
         elif message_not_found is not None:
             print()
             print(message_not_found)
@@ -191,6 +217,7 @@ class Application:
                 self.__windows_path = self._opts_win_mount_point()
             else:
                 self.__windows_path = locate_windows_mount_points()[0]
+        assert self.__windows_path is not None
         return self.__windows_path
 
     def _windows_registry(self) -> WindowsRegistry:
@@ -256,9 +283,9 @@ class Application:
         )
 
     def backup(self, path: str | bool) -> None:
-        backup_path = path
-        if backup_path is True:
-            backup_path = DEFAULT_BACKUP_PATH
+        if path is False:
+            return
+        backup_path: str = DEFAULT_BACKUP_PATH if path is True else path
 
         saved_filename, restore_filename = self._windows_registry().backup(backup_path, dry_run=self.is_dry_run())
         heading = ["BACKUP"]

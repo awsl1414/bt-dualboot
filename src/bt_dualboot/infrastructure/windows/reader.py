@@ -27,7 +27,7 @@ class WindowsDeviceReader:
         for section_key in reg_data:
             adapter_mac = extract_adapter_mac(section_key)
             if adapter_mac is None:
-                device = self._parse_ble_device(section_key, reg_data[section_key])
+                device = self._parse_ble_device(section_key, dict(reg_data[section_key]))
                 if device is not None:
                     bluetooth_devices.append(device)
                 continue
@@ -73,6 +73,17 @@ class WindowsDeviceReader:
         for data_key, registry_key in optional_key_map.items():
             if registry_key in section:
                 pairing_data[data_key] = hex_string_from_reg(section[registry_key])
+
+        # Windows-only fields preserved for round-trip (Issue #33)
+        windows_only_key_map: dict[str, str] = {
+            "Address": "address",
+            "AddressType": "addresstype",
+            "AuthReq": "authreq",
+            "CentralIRKStatus": "centralirkstatus",
+        }
+        for data_key, registry_key in windows_only_key_map.items():
+            if registry_key in section:
+                pairing_data[data_key] = section[registry_key]
 
         return BluetoothDevice(
             source=DeviceSource.WINDOWS,
