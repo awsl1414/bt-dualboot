@@ -14,9 +14,9 @@ uv run bt-dualboot --version               # Verify CLI works
 uv run pytest tests/ -v                    # Run all unit tests
 uv run pytest tests/bt_linux/test_devices.py -v  # Run single test file
 uv run pytest tests/ -v -k "test_get_devices"    # Run tests by name
-uv run ruff check src/ tests/              # Lint
-uv run ruff format src/ tests/             # Format
-uv run ruff check --fix src/ tests/        # Auto-fix lint issues
+uv run ruff check src/ tests/ tests_integration/  # Lint
+uv run ruff format src/ tests/ tests_integration/ # Format
+uv run ruff check --fix src/ tests/ tests_integration/  # Auto-fix lint issues
 ```
 
 No system python/pip — everything goes through `uv run`.
@@ -45,18 +45,27 @@ src/bt_dualboot/
 
 **Windows registry writes** use `reged -N -E` (rewrite-only, no size change). Backups strongly recommended before writes.
 
+## Type Annotations
+
+All source code uses Python 3.13+ type annotations:
+- PEP 604 union syntax: `str | None`
+- PEP 585 generic syntax: `list[str]`, `dict[str, str]`
+- PEP 695 type aliases: `type DeviceOrMac = str | BluetoothDevice`
+- Test fixtures and helpers are annotated; test functions (`test_*`) are not
+
 ## Testing
 
 - `tests/conftest.py` — all fixtures (windows_registry with temp SYSTEM hive, test_scheme device/key mapping, sample data paths)
 - `tests/_helpers.py` — `pytest_unwrap()` and `bt_linux_sample_01_unwrapped()` for `@patch` decorators
 - `tests_integration/` — Docker-based CLI integration tests, imports from `tests.conftest` and `tests._helpers`
 - `tests/__init__.py` is kept because integration tests import from it
-- Snapshot tests in `tests/cli/test_tools.py` are `@pytest.mark.skip` — awaiting syrupy migration from pytest-snapshot API
+- Snapshot tests use **syrupy** (`assert value == snapshot`), stored in `__snapshots__/*.ambr`
 - Test data: `tests/bt_linux/data_samples/` (Linux BT info files), `tests/windows_registry/data_samples/` (Windows SYSTEM hive + .reg export)
 
 ## Configuration
 
 - **pytest**: `importlib` import mode, `testpaths = ["tests"]`
-- **ruff**: py312 target, 120 line length, rules: E/W/F/I/UP/B/SIM/TCH
+- **ruff**: py313 target, 120 line length, rules: E/W/F/I/UP/B/SIM/TCH
+- **Python**: requires >=3.13
 - **External dep**: `chntpw` must be installed on the system (provides `reged`)
 - **Debug mode**: `DEBUG=1 bt-dualboot` enables verbose output

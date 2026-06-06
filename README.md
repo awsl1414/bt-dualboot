@@ -12,7 +12,7 @@ User-friendly tool making your bluetooth devices working both in Windows and Lin
 
 [How to install](#prerequisites)
 
-**For developers**: checkout the [Developer insights](README-dev.md) for useful development and testings tips.
+**For developers**: checkout the [Developer Guide](README-dev.md) for development and testing instructions.
 
 ### Usage: shortest way
 
@@ -83,10 +83,9 @@ Syncing...
 
 See [`bt-dualboot -h`](#cli-reference) and chapters below for details.
 
-## Prerequisites 
+## Prerequisites
 
-* Python 3.6+ installed.
-
+* Python 3.13+ installed.
 * `chntpw` package installed:
 
 ```console
@@ -100,16 +99,22 @@ see https://pogostick.net/~pnh/ntpasswd/
 ## Install
 
 ```console
-$ sudo pip install bt-dualboot
+$ uv tool install bt-dualboot
 ```
 
-NOTES: **sudo** - application requires read-only access to bluetooth devices configuration files which is inaccessible for regular user. Native OS packages will be added in next releases.
+or with pipx:
+
+```console
+$ pipx install bt-dualboot
+```
+
+NOTES: **sudo** - application requires read-only access to bluetooth devices configuration files which is inaccessible for regular user.
 
 ### Supported OS
 
 Tested with Linux Mint 19.3, 20.3 (Ubutntu 18.04 bionic, 20.04 focal), Windows 10
 
-Supported: 
+Supported:
 
 * Potentially any Linux-based systems keeping bluetooth configuration in similar format as Ubuntu
 * Windows 10+
@@ -126,7 +131,7 @@ Windows Registry update performed in the safe way using `chntpw/reged` without c
 You have to choose your backup strategy explicitly.
 
 ```console
-$ sudo bt-dualboot --sync-all 
+$ sudo bt-dualboot --sync-all
 usage: ....
 bt-dualboot: error: Neither backup option given!
 
@@ -151,13 +156,13 @@ By default application will recognize and use mounted Windows partition. In case
 Use `--list-win-mounts` to list recognized Windows partitions.
 
 ```console
-$ bt-dualboot --lsit-win-mounts
+$ bt-dualboot --list-win-mounts
 
 Windows locations:
 ==================
  /media/user/win_foo
  /media/user/win_bar
- 
+
 $ sudo bt-dualboot --win /media/user/win_foo -l
 ```
 
@@ -200,7 +205,7 @@ This application implements the way suggested by the [comment](https://unix.stac
 
 checkout ["bluetooth dualboot" on github](https://github.com/search?q=bluetooth+dualboot&type=repositories)
 
-**solved by invoke single tool under Linux: sync keys from Linux into Windows registry**: 
+**solved by invoke single tool under Linux: sync keys from Linux into Windows registry**:
 
 (similar approach to bt-dualboot)
 
@@ -261,4 +266,3 @@ Backup Windows Registry:
 First priority is to extend list of tested and supported OS.
 
 General roadmap assumes creating GUI and background service versions, adding sync Linux to Linux ability. It will be implemented on demand - give a voice at https://github.com/x2es/bt-dualboot/issues/2
-
