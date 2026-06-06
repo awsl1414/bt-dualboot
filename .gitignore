@@ -4,3 +4,4 @@ src/*.egg-info/
 .venv/
 *.pyc
 .ruff_cache/
+tmp/

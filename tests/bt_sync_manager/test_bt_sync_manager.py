@@ -42,7 +42,12 @@ class TestBtSyncManager__Initial:
         assert sorted(devices_macs) == sorted(expected_macs)
 
     def test_devices_absent_windows(self, sync_manager):
-        expected_macs = ["D1:8A:4E:71:5D:C1", "C4:72:B3:6F:82:42"]
+        expected_macs = [
+            "44:16:22:E6:73:15",
+            "AA:BB:CC:DD:EE:FF",
+            "D1:8A:4E:71:5D:C1",
+            "C4:72:B3:6F:82:42",
+        ]
 
         devices = sync_manager.devices_absent_windows()
         devices_macs = [device.mac for device in devices]
@@ -73,7 +78,12 @@ class TestBtSyncManager__AfterSync:
         assert sorted(devices_macs) == sorted(expected_macs)
 
     def test_devices_absent_windows(self, sync_manager, just_pushed):
-        expected_macs = ["D1:8A:4E:71:5D:C1", "C4:72:B3:6F:82:42"]
+        expected_macs = [
+            "44:16:22:E6:73:15",
+            "AA:BB:CC:DD:EE:FF",
+            "D1:8A:4E:71:5D:C1",
+            "C4:72:B3:6F:82:42",
+        ]
 
         devices = sync_manager.devices_absent_windows()
         devices_macs = [device.mac for device in devices]

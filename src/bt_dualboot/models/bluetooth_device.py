@@ -8,6 +8,8 @@ class BluetoothDevice:
         pairing_key (str)
         adapter_mac (str)
         source (str): kind of 'Windows', 'Linux'
+        pairing_type (str): kind of 'LinkKey', 'LongTermKey'
+        pairing_data (dict): pairing key data fields
 
     """
 
@@ -17,6 +19,8 @@ class BluetoothDevice:
     adapter_mac: str | None
     klass: str | None
     source: str | None
+    pairing_type: str | None
+    pairing_data: dict[str, str]
 
     def __init__(
         self,
@@ -26,7 +30,17 @@ class BluetoothDevice:
         adapter_mac: str | None = None,
         device_class: str | None = None,
         source: str | None = None,
+        pairing_type: str | None = None,
+        pairing_data: dict[str, str] | None = None,
     ) -> None:
+        if pairing_type is None and pairing_key is not None:
+            pairing_type = self.pairing_type_link_key()
+
+        pairing_data = {} if pairing_data is None else dict(pairing_data)
+
+        if pairing_key is not None and "Key" not in pairing_data:
+            pairing_data["Key"] = pairing_key
+
         # fmt: off
         self.source         = source
         self.klass          = device_class
@@ -34,6 +48,8 @@ class BluetoothDevice:
         self.name           = name
         self.pairing_key    = pairing_key
         self.adapter_mac    = adapter_mac
+        self.pairing_type   = pairing_type
+        self.pairing_data   = pairing_data
         # fmt: on
 
     def __repr__(self) -> str:
@@ -50,8 +66,26 @@ class BluetoothDevice:
     def source_windows(cls) -> str:
         return "Windows"
 
+    @classmethod
+    def pairing_type_link_key(cls) -> str:
+        return "LinkKey"
+
+    @classmethod
+    def pairing_type_long_term_key(cls) -> str:
+        return "LongTermKey"
+
     def is_source_linux(self) -> bool:
         return self.source == "Linux"
 
     def is_source_windows(self) -> bool:
         return self.source == "Windows"
+
+    def is_pairing_type_long_term_key(self) -> bool:
+        return self.pairing_type == self.pairing_type_long_term_key()
+
+    def pairing_fingerprint(self) -> tuple[str | None, tuple[tuple[str, str], ...]]:
+        """Compare pairing data between two devices (replaces simple pairing_key comparison)"""
+        return (
+            self.pairing_type,
+            tuple(sorted((k, str(v)) for k, v in self.pairing_data.items())),
+        )

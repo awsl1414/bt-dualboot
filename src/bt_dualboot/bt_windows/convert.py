@@ -88,6 +88,84 @@ def hex_string_to_reg_value(hex_string: str) -> str:
     return f"hex:{value}"
 
 
+def _reg_value_type_and_value(reg_value: str) -> tuple[str, str]:
+    """Split registry value into type and value parts
+
+    Args:
+        reg_value: kind of 'dword:00000010' or 'hex:a6,1b,...'
+
+    Returns:
+        tuple: (type, value) like ('dword', '00000010')
+    """
+    value_type, value = reg_value.split(":", 1)
+    return value_type.lower(), value
+
+
+def _bytes_from_reg_value(reg_value: str) -> list[str]:
+    """Extract byte list from registry value, supports hex/hex(b)/dword
+
+    Args:
+        reg_value: kind of 'hex:34,12,00,00' or 'dword:00000010'
+
+    Returns:
+        list[str]: byte pairs like ['34', '12', '00', '00']
+    """
+    value_type, value = _reg_value_type_and_value(reg_value)
+
+    if value_type == "dword":
+        return hex_string_to_pairs(value.upper())
+
+    if value_type in ["hex", "hex(b)"]:
+        return [pair.strip().upper() for pair in value.split(",") if pair.strip() != ""]
+
+    raise RuntimeError(f"unsupported registry value={reg_value}")
+
+
+def int_from_le_reg_value(reg_value: str) -> int:
+    """Convert little-endian Windows registry value to int
+
+    Supports REG_BINARY/REG_QWORD byte lists and REG_DWORD values.
+
+    Args:
+        reg_value: kind of 'hex:34,12,00,00' or 'dword:00000010' or 'hex(b):08,07,...'
+
+    Returns:
+        int: decoded integer value
+    """
+    value_type, value = _reg_value_type_and_value(reg_value)
+
+    if value_type == "dword":
+        return int(value, 16)
+
+    pairs = _bytes_from_reg_value(reg_value)
+    return int("".join(pairs[::-1]), 16)
+
+
+def int_to_dword_reg_value(value: int | str) -> str:
+    """Convert int to Windows registry dword value
+
+    Args:
+        value: integer value like 16
+
+    Returns:
+        str: kind of 'dword:00000010'
+    """
+    return f"dword:{int(value):08x}"
+
+
+def int_to_qword_reg_value(value: int | str) -> str:
+    """Convert int to Windows registry qword value (little-endian hex(b))
+
+    Args:
+        value: integer value like 72623859790382856
+
+    Returns:
+        str: kind of 'hex(b):08,07,06,05,04,03,02,01'
+    """
+    pairs = hex_string_to_pairs(f"{int(value):016x}")
+    return f"hex(b):{','.join(pairs[::-1])}"
+
+
 def _unquote(value: str) -> str:
     """unquote value is quoted
     Args:

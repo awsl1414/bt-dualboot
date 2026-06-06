@@ -1,3 +1,4 @@
+from bt_dualboot.bt_windows.convert import mac_to_reg_key
 from bt_dualboot.bt_windows.devices import extract_adapter_mac, get_devices
 from bt_dualboot.windows_registry import WindowsRegistry
 
@@ -25,3 +26,41 @@ def test_get_devices__source(windows_registry, import_devices):
     devices = get_devices(windows_registry)
     for device in devices:
         assert device.is_source_windows()
+
+
+def test_get_devices__long_term_key(windows_registry):
+    adapter_mac = "A4:6B:6C:9D:E2:FB"
+    device_mac = "AA:BB:CC:DD:EE:FF"
+    reg_section = wp(
+        r"ControlSet001\Services\BTHPORT\Parameters\Keys"
+        + "\\"
+        + mac_to_reg_key(adapter_mac)
+        + "\\"
+        + mac_to_reg_key(device_mac)
+    )
+    windows_registry.import_dict(
+        {
+            reg_section: {
+                '"LTK"': "hex:ff,ee,dd,cc,bb,aa,99,88,77,66,55,44,33,22,11,00",
+                '"KeyLength"': "dword:00000010",
+                '"EDIV"': "dword:00001234",
+                '"ERand"': "hex(b):08,07,06,05,04,03,02,01",
+                '"IRK"': "hex:00,11,22,33,44,55,66,77,88,99,aa,bb,cc,dd,ee,ff",
+            }
+        },
+        safe=False,
+    )
+
+    devices = get_devices(windows_registry)
+    device = [device for device in devices if device.mac == device_mac][0]
+
+    assert device.adapter_mac == adapter_mac
+    assert device.pairing_key == "FFEEDDCCBBAA99887766554433221100"
+    assert device.pairing_type == "LongTermKey"
+    assert device.pairing_data == {
+        "Key": "FFEEDDCCBBAA99887766554433221100",
+        "EncSize": "16",
+        "EDiv": "4660",
+        "Rand": "72623859790382856",
+        "IRK": "00112233445566778899AABBCCDDEEFF",
+    }

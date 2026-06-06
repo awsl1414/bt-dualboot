@@ -1,0 +1,16 @@
+[General]
+Name=BLE Device Without LinkKey
+SupportedTechnologies=LE;
+Trusted=true
+Blocked=false
+Services=0000180f-0000-1000-8000-00805f9b34fb;
+
+[IdentityResolvingKey]
+Key=00112233445566778899AABBCCDDEEFF
+
+[LongTermKey]
+Key=FFEEDDCCBBAA99887766554433221100
+EncSize=16
+EDiv=4660
+Rand=72623859790382856
+Authenticated=0
