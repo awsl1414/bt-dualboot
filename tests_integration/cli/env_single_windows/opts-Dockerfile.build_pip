@@ -1,3 +1,0 @@
-flags="pre-release"
-require_image="base"
-run_opts="--workdir /prj"

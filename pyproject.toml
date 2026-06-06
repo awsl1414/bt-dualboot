@@ -1,6 +1,6 @@
 [project]
 name = "bt-dualboot"
-version = "1.0.1"
+version = "2.0.0"
 description = "Sync Bluetooth for dualboot Linux and Windows"
 keywords = ["bluetooth", "dualboot", "sync", "pairing", "keys"]
 authors = [
@@ -38,7 +38,7 @@ build-backend = "hatchling.build"
 packages = ["src/bt_dualboot"]
 
 [project.scripts]
-bt-dualboot = "bt_dualboot.cli.app:main"
+bt-dualboot = "bt_dualboot.cli.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -51,6 +51,9 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "TCH"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["bt_dualboot"]
+
 [dependency-groups]
 dev = [
     "pytest",
@@ -58,4 +61,5 @@ dev = [
     "time-machine",
     "ruff",
     "ty",
+    "pytest-cov>=7.1.0",
 ]

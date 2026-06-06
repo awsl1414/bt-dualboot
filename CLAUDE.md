@@ -12,36 +12,71 @@ A CLI tool that syncs Bluetooth pairing keys between Linux and Windows on dual-b
 uv sync                                    # Install package + dev deps
 uv run bt-dualboot --version               # Verify CLI works
 uv run pytest tests/ -v                    # Run all unit tests
-uv run pytest tests/bt_linux/test_devices.py -v  # Run single test file
+uv run pytest tests/application/test_sync.py -v  # Run single test file
 uv run pytest tests/ -v -k "test_get_devices"    # Run tests by name
-uv run ruff check src/ tests/ tests_integration/  # Lint
-uv run ruff format src/ tests/ tests_integration/ # Format
-uv run ruff check --fix src/ tests/ tests_integration/  # Auto-fix lint issues
+uv run ruff check src/ tests/              # Lint
+uv run ruff format src/ tests/             # Format
+uv run ruff check --fix src/ tests/        # Auto-fix lint issues
 ```
 
 No system python/pip — everything goes through `uv run`.
 
-## Architecture
+## Architecture (Clean Architecture)
 
 ```
 src/bt_dualboot/
 ├── __init__.py              # APP_NAME + __version__ via importlib.metadata
-├── cli/
-│   ├── app.py               # main(), Application class, argparse
-│   └── tools.py             # Guards (require_linux, require_chntpw), print helpers
-├── models/
-│   └── bluetooth_device.py  # BluetoothDevice value object
-├── bt_linux/                # Reads /var/lib/bluetooth/ INI files
-├── bt_windows/              # Reads Windows registry via WindowsRegistry
-│   ├── convert.py           # MAC/key format conversions (hex ↔ registry)
-│   └── devices.py
-├── bt_sync_manager/
-│   └── manager.py           # BtSyncManager: compare keys, push Linux → Windows
-└── windows_registry/
-    └── registry.py          # WindowsRegistry: wraps chntpw/reged for hive manipulation
+├── _debug.py                # is_debug() singleton
+│
+├── domain/                  # Pure Python, zero project dependencies
+│   ├── enums.py             # PairingType, DeviceSource (StrEnum)
+│   ├── models.py            # BluetoothDevice (frozen dataclass)
+│   └── protocols.py         # DeviceReader, DeviceWriter (Protocol)
+│
+├── application/             # Business logic, depends on domain/ only
+│   └── sync.py              # SyncService, DeviceNotFoundError
+│
+├── infrastructure/          # Platform implementations, depends on domain/ only
+│   ├── mount.py             # Windows partition discovery
+│   ├── linux/
+│   │   ├── parser.py        # INI parsing → BluetoothDevice
+│   │   └── reader.py        # LinuxDeviceReader(bt_dir=...)
+│   ├── windows/
+│   │   ├── parser.py        # Registry section parsing
+│   │   ├── reader.py        # WindowsDeviceReader
+│   │   ├── convert.py       # hex/MAC/registry conversions (pure functions)
+│   │   └── writer.py        # WindowsDeviceWriter
+│   └── registry/
+│       └── hive.py          # WindowsRegistry (chntpw/reged wrapper)
+│
+└── cli/                     # CLI interface (composition root)
+    └── main.py              # argparse + Application
 ```
 
-**Data flow**: `bt_linux/` reads Linux devices → `bt_windows/` reads Windows devices → `bt_sync_manager/` compares and pushes Linux keys into Windows registry via `windows_registry/`.
+### Dependency Direction
+
+```
+domain          ← stdlib only
+  ↑
+application     ← domain/ only
+  ↑
+infrastructure  ← domain/ only (never imports application/)
+  ↑
+cli             ← application/ + domain/ + infrastructure/ (composition root)
+[gui]           ← same as cli (future PySide6 GUI)
+```
+
+### Key Design Decisions
+
+- **Frozen dataclass**: `BluetoothDevice` is `@dataclass(slots=True, frozen=True, kw_only=True)`. Use `dataclasses.replace()` for mutation.
+- **Protocol-based DI**: `DeviceReader`/`DeviceWriter` protocols. CLI/GUI inject concrete implementations into `SyncService`.
+- **GUI-ready**: `SyncService` has no print/argparse/I/O. Future PySide6 GUI can directly reuse it.
+- **No `__post_init__`**: Auto-derivation logic (pairing_type default, Key injection) lives in parser layer.
+- **Parameterized readers**: `LinuxDeviceReader(bt_dir=...)` eliminates `@patch` in tests.
+
+### Data Flow
+
+`linux/reader` reads `/var/lib/bluetooth/` → `windows/reader` reads registry → `SyncService` compares and pushes via `windows/writer` → `registry/hive` writes via chntpw/reged.
 
 **Windows registry writes** use `reged -N -E` (rewrite-only, no size change). Backups strongly recommended before writes.
 
@@ -56,16 +91,15 @@ All source code uses Python 3.13+ type annotations:
 ## Testing
 
 - `tests/conftest.py` — all fixtures (windows_registry with temp SYSTEM hive, test_scheme device/key mapping, sample data paths)
-- `tests/_helpers.py` — `pytest_unwrap()` and `bt_linux_sample_01_unwrapped()` for `@patch` decorators
-- `tests_integration/` — Docker-based CLI integration tests, imports from `tests.conftest` and `tests._helpers`
-- `tests/__init__.py` is kept because integration tests import from it
+- `tests/_helpers.py` — `bt_linux_sample_01_unwrapped()` for path resolution
 - Snapshot tests use **syrupy** (`assert value == snapshot`), stored in `__snapshots__/*.ambr`
-- Test data: `tests/bt_linux/data_samples/` (Linux BT info files), `tests/windows_registry/data_samples/` (Windows SYSTEM hive + .reg export)
+- Test data: `tests/infrastructure/linux/data_samples/` (Linux BT info files), `tests/infrastructure/registry/data_samples/` (Windows SYSTEM hive + .reg export)
+- Tests mirror `src/` structure: `domain/`, `application/`, `infrastructure/`, `cli/`
 
 ## Configuration
 
 - **pytest**: `importlib` import mode, `testpaths = ["tests"]`
-- **ruff**: py313 target, 120 line length, rules: E/W/F/I/UP/B/SIM/TCH
+- **ruff**: py313 target, 120 line length, rules: E/W/F/I/UP/B/SIM/TCH, `known-first-party = ["bt_dualboot"]`
 - **Python**: requires >=3.13
 - **External dep**: `chntpw` must be installed on the system (provides `reged`)
 - **Debug mode**: `DEBUG=1 bt-dualboot` enables verbose output
