@@ -79,6 +79,9 @@ def no_device_error_handler() -> Generator[None]:
     except DeviceNotFoundError as err:
         message = err.args[0]
         raise SystemExit(f"ERROR: {message}\nNothing changed.") from None
+    except PermissionError as err:
+        message = err.args[0]
+        raise SystemExit(f"ERROR: {message}\nNothing changed.") from None
 
 
 def _invariant_and_halt(condition: bool, error_message: str) -> None:
