@@ -105,6 +105,12 @@ class WindowsRegistry:
 
     def import_dict(self, data_dict: dict[str, dict[str, str]], safe: bool = True, auto_prefix: bool = True) -> None:
         """Imports given dict into Windows registry"""
+        registry_file = self._registry_file()
+        if not os.access(registry_file, os.W_OK):
+            raise PermissionError(
+                f"Windows registry file is not writable: {registry_file}\n"
+                "Ensure the Windows partition is mounted with write access (e.g. remount with -o rw)."
+            )
         with TemporaryDirectory() as temp_dir_name:
             tmp_filename = os.path.join(temp_dir_name, "for_import.reg")
 
