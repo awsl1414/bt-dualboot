@@ -1,5 +1,7 @@
 import os
+from unittest.mock import patch
 
+import pytest
 from pytest import fixture
 
 from bt_dualboot.infrastructure.registry.hive import WindowsRegistry
@@ -66,3 +68,15 @@ class TestImport:
         assert os.path.getsize(sample_reg_file_path) == os.path.getsize(registry_file_path), (
             "Hive file size remain unchanged"
         )
+
+    def test_import_raises_when_registry_not_writable(self, windows_registry, registry_file_path):
+        for_import = {wp(r"ControlSet001\Control\Bluetooth\Audio\Hfp\HandsFree"): {'"Custom"': "dword:00000120"}}
+
+        with (
+            patch("bt_dualboot.infrastructure.registry.hive.os.access", return_value=False),
+            pytest.raises(PermissionError, match="not writable") as exc_info,
+        ):
+            windows_registry.import_dict(for_import)
+
+        assert registry_file_path in str(exc_info.value)
+        assert "remount" in str(exc_info.value)

@@ -73,15 +73,11 @@ def _opt_backup(value: bool | str | None) -> bool | str | None:
 
 
 @contextmanager
-def no_device_error_handler() -> Generator[None]:
+def sync_error_handler() -> Generator[None]:
     try:
         yield
-    except DeviceNotFoundError as err:
-        message = err.args[0]
-        raise SystemExit(f"ERROR: {message}\nNothing changed.") from None
-    except PermissionError as err:
-        message = err.args[0]
-        raise SystemExit(f"ERROR: {message}\nNothing changed.") from None
+    except (DeviceNotFoundError, PermissionError) as err:
+        raise SystemExit(f"ERROR: {err}\nNothing changed.") from None
 
 
 def _invariant_and_halt(condition: bool, error_message: str) -> None:
@@ -359,7 +355,7 @@ class Application:
         print(f"> {' '.join(heading)} {restore_filename} to {saved_filename}")
 
     def sync_devices(self, macs: list[str]) -> None:
-        with no_device_error_handler():
+        with sync_error_handler():
             self._sync_service().push(macs, dry_run=self.is_dry_run())
             status = "would be synced" if self.is_dry_run() else "synced"
             print(f"{status} {', '.join(macs)} successfully")
@@ -373,7 +369,7 @@ class Application:
                 print("Nothing to sync")
                 return
 
-            with no_device_error_handler():
+            with sync_error_handler():
                 print_devices_list(
                     "syncing",
                     "Syncing...",

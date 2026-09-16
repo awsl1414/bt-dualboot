@@ -4,12 +4,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from bt_dualboot import __version__
+from bt_dualboot.application.sync import DeviceNotFoundError
 from bt_dualboot.cli.main import (
     Application,
     _argv_parser,
     _parse_selection,
     print_devices_list,
     resolve_windows_location,
+    sync_error_handler,
 )
 from bt_dualboot.domain.enums import DeviceSource, PairingType
 from bt_dualboot.domain.models import BluetoothDevice
@@ -76,6 +78,20 @@ class Test__print_devices_list:
         _print_with_common_args([])
         stdout, stderr = capsys.readouterr()
         assert stdout == snapshot
+
+
+class TestSyncErrorHandler:
+    def test_device_not_found_exits_with_message(self):
+        with pytest.raises(SystemExit) as exc_info, sync_error_handler():
+            raise DeviceNotFoundError("device missing")
+        assert str(exc_info.value) == "ERROR: device missing\nNothing changed."
+
+    def test_permission_error_exits_with_message(self):
+        with pytest.raises(SystemExit) as exc_info, sync_error_handler():
+            raise PermissionError("Windows registry file is not writable: /mnt/win/SYSTEM")
+        msg = str(exc_info.value)
+        assert "ERROR: Windows registry file is not writable: /mnt/win/SYSTEM" in msg
+        assert "Nothing changed." in msg
 
 
 class TestResolveWindowsLocation:
