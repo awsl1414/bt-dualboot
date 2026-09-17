@@ -1,6 +1,6 @@
 [project]
 name = "bt-dualboot-ng"
-version = "2.1.1"
+version = "2.1.2"
 description = "Sync Bluetooth for dualboot Linux and Windows"
 keywords = ["bluetooth", "dualboot", "sync", "pairing", "keys"]
 authors = [
