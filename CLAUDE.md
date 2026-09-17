@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A CLI tool that syncs Bluetooth pairing keys between Linux and Windows on dual-boot systems. It reads Linux pairing keys from `/var/lib/bluetooth/` and writes them into the Windows registry hive file via `chntpw/reged`. Auto-elevates to root via sudo when needed (`--no-elevate` to disable). Fork of [x2es/bt-dualboot](https://github.com/x2es/bt-dualboot), maintained at [awsl1414/bt-dualboot](https://github.com/awsl1414/bt-dualboot) on the `dev` branch. PyPI package: `bt-dualboot-ng`.
+A CLI tool that syncs Bluetooth pairing keys between Linux and Windows on dual-boot systems. It reads Linux pairing keys from `/var/lib/bluetooth/` and writes them into the Windows registry hive file via `chntpw/reged`. Auto-elevates to root via sudo when needed (`--no-elevate` to disable). Fork of [x2es/bt-dualboot](https://github.com/x2es/bt-dualboot), maintained at [awsl1414/bt-dualboot](https://github.com/awsl1414/bt-dualboot) on the `dev` branch. PyPI package: `bt-dualboot-ng`; CLI command: `bt-dualboot`.
+
+User docs: [README.md](README.md) · [README.zh-CN.md](README.zh-CN.md). Developer setup: [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Commands
 
@@ -25,7 +27,7 @@ No system python/pip — everything goes through `uv run`.
 
 ```
 src/bt_dualboot/
-├── __init__.py              # APP_NAME + __version__ via importlib.metadata
+├── __init__.py              # APP_NAME ("bt-dualboot") + __version__ via importlib.metadata
 ├── _debug.py                # is_debug() singleton
 │
 ├── domain/                  # Pure Python, zero project dependencies
